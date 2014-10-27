@@ -422,6 +422,9 @@ installEPTIDSupport ()
 		fi
 
 		if [ "${isInstalled}" -ne 0 ]; then
+		        echo "Mysql not installed"
+                        [[ "${dist}" == "centos" ]] && myInstCmd="yum -y install mysqld" || myInstCmd="apt-get -y install mysql-server"
+                        eval ${myInstCmd} >> ${statusFile} 2>&1	
 			export DEBIAN_FRONTEND=noninteractive
 			eval ${distCmd5} >> ${statusFile} 2>&1
 
