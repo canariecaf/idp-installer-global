@@ -19,8 +19,8 @@ cleanBadInstall() {
 	if [ -d "/opt/mysql-connector-java-5.1.27" ]; then
 		rm -rf /opt/mysql-connector-java-5.1.27
 	fi
-	if [ -f "/usr/share/tomcat6/lib/tomcat6-dta-ssl-1.0.0.jar" ]; then
-		rm /usr/share/tomcat6/lib/tomcat6-dta-ssl-1.0.0.jar
+	if [ -f "/usr/share/tomcat/lib/tomcat-dta-ssl-1.0.0.jar" ]; then
+		rm /usr/share/tomcat/lib/tomcat-dta-ssl-1.0.0.jar
 	fi
 	if [ -d "/opt/apache-maven-3.1.0/" ]; then
 		rm -rf /opt/apache-maven-3.1.0/
@@ -434,30 +434,30 @@ installEPTIDSupport ()
 			if [ ! -f "$tfile" ]; then
 				return 1
 			fi
-			cat << EOM > $tfile
-USE mysql;
-UPDATE user SET password=PASSWORD("${mysqlPass}") WHERE user='root';
-FLUSH PRIVILEGES;
-EOM
-
-			mysql --no-defaults -u root -h localhost <$tfile
-			retval=$?
-			# moved removal of MySQL command file to be in the if-then-else statement set below
-
-			if [ "${retval}" -ne 0 ]; then
-				${Echo} "\n\n\nAn error has occurred in the configuration of the MySQL installation."
-				${Echo} "Please correct the MySQL installation and make sure a root password is set and it is possible to log in using the 'mysql' command."
-				${Echo} "When MySQL is working, re-run this script."
-				${Echo} "The file being run in MySQL is ${tfile} and has not been deleted, please review and delete as necessary."
-				cleanBadInstall
-			else
-				rm -f $tfile
-			fi
-
-
-			if [ "${dist}" != "ubuntu" ]; then
-				/sbin/chkconfig mysqld on
-			fi
+#			cat << EOM > $tfile
+#USE mysql;
+#UPDATE user SET password=PASSWORD("${mysqlPass}") WHERE user='root';
+#FLUSH PRIVILEGES;
+#EOM
+#
+#			mysql --no-defaults -u root -h localhost -pqwe123
+#			retval=$?
+#			# moved removal of MySQL command file to be in the if-then-else statement set below
+#
+#			if [ "${retval}" -ne 0 ]; then
+#				${Echo} "\n\n\nAn error has occurred in the configuration of the MySQL installation."
+#				${Echo} "Please correct the MySQL installation and make sure a root password is set and it is possible to log in using the 'mysql' command."
+#				${Echo} "When MySQL is working, re-run this script."
+#				${Echo} "The file being run in MySQL is ${tfile} and has not been deleted, please review and delete as necessary."
+#				cleanBadInstall
+#			else
+#				rm -f $tfile
+#			fi
+#
+#
+#			if [ "${dist}" != "ubuntu" ]; then
+#				/sbin/chkconfig mysqld on
+#			fi
 		fi
 
 		fetchMysqlCon
@@ -522,19 +522,29 @@ fi
 installTomcat() {
 	isInstalled="4"
 	if [ "${dist}" = "ubuntu" ]; then
-		test=`dpkg -s tomcat6 > /dev/null 2>&1`
+		test=`dpkg -s tomcat > /dev/null 2>&1`
 		isInstalled=$?
 	else
-		test=`rpm -q tomcat6 > /dev/null 2>&1`
+	        yum -y install tomcat.noarch
+        	/sbin/chkconfig tomcat on
+        	service tomcat start
 		isInstalled=$?
 	fi
 	if [ "${isInstalled}" -ne 0 ]; then
 		eval ${distCmd4}
 		if [ "${dist}" != "ubuntu" ]; then
-			/sbin/chkconfig tomcat6 on
+			/sbin/chkconfig tomcat on
 		fi
 	fi
 }
+
+installMySQL() {
+	rpm -ivh http://repo.mysql.com/mysql-community-release-el7-5.noarch.rpm
+	/sbin/chkconfig mysqld on
+	service mysqld start
+	mysqladmin password ${mysqlPass}
+}
+
 
 fetchAndUnzipShibbolethIdP ()
 
@@ -570,6 +580,7 @@ mkdir -p ${certpath}
 	
 
 }
+
 
 
 
@@ -1034,22 +1045,22 @@ patchTomcatConfigs ()
 
 {
 
-	if [ ! -d "/usr/share/tomcat6/endorsed" ]; then
-		mkdir /usr/share/tomcat6/endorsed
+	if [ ! -d "/usr/share/tomcat/endorsed" ]; then
+		mkdir /usr/share/tomcat/endorsed
 	fi
 	for i in `ls /opt/shibboleth-identityprovider/endorsed/`; do
-		if [ ! -s "/usr/share/tomcat6/endorsed/${i}" ]; then
-			cp /opt/shibboleth-identityprovider/endorsed/${i} /usr/share/tomcat6/endorsed
+		if [ ! -s "/usr/share/tomcat/endorsed/${i}" ]; then
+			cp /opt/shibboleth-identityprovider/endorsed/${i} /usr/share/tomcat/endorsed
 		fi
 	done
 
 	. ${tomcatSettingsFile}
-	if [ -z "`${Echo} ${JAVA_OPTS} | grep '/usr/share/tomcat6/endorsed'`" ]; then
-		JAVA_OPTS="`${Echo} ${JAVA_OPTS} | sed -re 's/-Xmx128m//'` -Djava.endorsed.dirs=/usr/share/tomcat6/endorsed -Xms512m -Xmx512m -XX:MaxPermSize=128m"
+	if [ -z "`${Echo} ${JAVA_OPTS} | grep '/usr/share/tomcat/endorsed'`" ]; then
+		JAVA_OPTS="`${Echo} ${JAVA_OPTS} | sed -re 's/-Xmx128m//'` -Djava.endorsed.dirs=/usr/share/tomcat/endorsed -Xms512m -Xmx512m -XX:MaxPermSize=128m"
 		JAVA_OPTS="`${Echo} ${JAVA_OPTS} | sed -re 's/^\s+//'`"
 		${Echo} "JAVA_OPTS=\"${JAVA_OPTS}\"" >> ${tomcatSettingsFile}
 		if [ "${dist}" != "ubuntu" ]; then
-			${Echo} 'JAVA_ENDORSED_DIRS="/usr/share/tomcat6/endorsed"' >> ${tomcatSettingsFile}
+			${Echo} 'JAVA_ENDORSED_DIRS="/usr/share/tomcat/endorsed"' >> ${tomcatSettingsFile}
 		fi
 	else
 		${Echo} "JAVA_OPTS for tomcat already configured" >> ${messages}
@@ -1073,21 +1084,21 @@ patchTomcatConfigs ()
 		tomcatSSLport="7443"
 	fi
 
-	if [ ! -s "/usr/share/tomcat6/lib/tomcat6-dta-ssl-1.0.0.jar" ]; then
-		${fetchCmd} /usr/share/tomcat6/lib/tomcat6-dta-ssl-1.0.0.jar ${tomcatDepend}
+	if [ ! -s "/usr/share/tomcat/lib/tomcat-dta-ssl-1.0.0.jar" ]; then
+		${fetchCmd} /usr/share/tomcat/lib/tomcat-dta-ssl-1.0.0.jar ${tomcatDepend}
 
-		if [ ! -s "/usr/share/tomcat6/lib/tomcat6-dta-ssl-1.0.0.jar" ]; then
+		if [ ! -s "/usr/share/tomcat/lib/tomcat-dta-ssl-1.0.0.jar" ]; then
 			${Echo} "Can not get tomcat dependancy, aborting install."
 			cleanBadInstall
 		fi
 	fi
 
-	cp /etc/tomcat6/server.xml /etc/tomcat6/server.xml.${ts}
-	cat ${Spath}/xml/${my_ctl_federation}/server.xml | sed "s/tomcatSSLport/${tomcatSSLport}/" > /etc/tomcat6/server.xml
-	chmod o-rwx /etc/tomcat6/server.xml
+	cp /etc/tomcat/server.xml /etc/tomcat/server.xml.${ts}
+	cat ${Spath}/xml/${my_ctl_federation}/server.xml | sed "s/tomcatSSLport/${tomcatSSLport}/" > /etc/tomcat/server.xml
+	chmod o-rwx /etc/tomcat/server.xml
 
 	tcatUser=`grep "^tomcat" /etc/passwd | cut -d: -f1`
-	chown ${tcatUser} /etc/tomcat6/server.xml
+	chown ${tcatUser} /etc/tomcat/server.xml
 	chown ${tcatUser} /opt/shibboleth-idp/metadata
 	chown -R ${tcatUser} /opt/shibboleth-idp/logs/
 
@@ -1095,11 +1106,11 @@ patchTomcatConfigs ()
 	chsh -s /bin/bash ${tcatUser}
 
 
-	if [ -d "/var/lib/tomcat6/webapps/ROOT" ]; then
-		mv /var/lib/tomcat6/webapps/ROOT /opt/disabled.tomcat6.webapps.ROOT
+	if [ -d "/var/lib/tomcat/webapps/ROOT" ]; then
+		mv /var/lib/tomcat/webapps/ROOT /opt/disabled.tomcat.webapps.ROOT
 	fi
 	if [ "${dist}" = "ubuntu" ]; then
-		cp /usr/share/tomcat6/lib/servlet-api.jar /opt/shibboleth-idp/lib/
+		cp /usr/share/tomcat/lib/servlet-api.jar /opt/shibboleth-idp/lib/
 	fi
 
 
@@ -1208,11 +1219,11 @@ updateTomcatAddingIDPWar ()
 {
 	# 	add idp.war to tomcat
 	if [ "${dist}" = "ubuntu" ]; then
-		cp ${Spath}/xml/${my_ctl_federation}/tomcat.idp.xml /var/lib/tomcat6/conf/Catalina/localhost/idp.xml
+		cp ${Spath}/xml/${my_ctl_federation}/tomcat.idp.xml /var/lib/tomcat/conf/Catalina/localhost/idp.xml
 	else
-		cp ${Spath}/xml/${my_ctl_federation}/tomcat.idp.xml /etc/tomcat6/Catalina/localhost/idp.xml
+		cp ${Spath}/xml/${my_ctl_federation}/tomcat.idp.xml /etc/tomcat/Catalina/localhost/idp.xml
 		# make sure tomcat can see the file
-		chown tomcat /etc/tomcat6/Catalina/localhost/idp.xml
+		chown tomcat /etc/tomcat/Catalina/localhost/idp.xml
 
 	fi
 }
@@ -1220,7 +1231,7 @@ updateTomcatAddingIDPWar ()
 restartTomcatService ()
 
 {
-	service tomcat6 restart
+	service tomcat restart
 }
 
 
@@ -1380,7 +1391,7 @@ enableTomcatOnRestart ()
 		ckCmd="/sbin/chkconfig"
 		ckArgs="--level 3"
 		ckState="on" 
-		ckServices="tomcat6"
+		ckServices="tomcat"
 
 		for myService in $ckServices
 		do
@@ -1428,6 +1439,8 @@ ${whiptailBin} --backtitle "${GUIbacktitle}" --title "Deploy Shibboleth customiz
 	generatePasswordsForSubsystems
 
 	installTomcat
+	
+	installMySQL
 	
 	# moved from above tomcat, to here just after.
 
