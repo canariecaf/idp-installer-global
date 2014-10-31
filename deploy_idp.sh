@@ -86,12 +86,12 @@ ${Echo} "======================================"
 # dos2unix to ensure we have a clean include of hand managed files
 #
 
-if [ ! -f "/usr/bin/host" -o ! -f "/usr/bin/dos2unix" ]; then
+if [ ! -f "/usr/bin/host" -o ! -f "/usr/bin/dos2unix" -o ! -f "/usr/bin/lsb_release" ]; then
 	${Echo} "\n\nAdding a few packages that we will use during the installation process..."
 	if [ "${dist}" = "ubuntu" ]; then
-		apt-get -y install dos2unix
+		apt-get -y install dos2unix lsb-release
 	else
-		yum -y install bind-utils dos2unix
+		yum -y install bind-utils dos2unix redhat-lsb-core
 	fi
 fi
 
