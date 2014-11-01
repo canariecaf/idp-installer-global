@@ -335,6 +335,21 @@ fi
 
 }
 
+installMysqlRepo() {
+
+        if [ ! -z "`rpm -q mysql-community-release | grep ' is not installed'`" ]; then
+
+                ${Echo} "Detected no MySQL, adding repos into /etc/yum.repos.d/ and updating them"
+                eval $redhatMySQL >> ${statusFile} 2>&1
+
+        else
+
+                ${Echo} "Dected MySQL EXIST on this system. Skipping this step as system already updated"
+        fi
+
+
+}
+
 setHostnames() {
 	FQDN=`hostname`
 	FQDN=`host -t A ${FQDN} | awk '{print $1}' | sed -re 's/\s+//g'`
