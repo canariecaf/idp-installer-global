@@ -72,7 +72,7 @@ redhatCmd1="yum -y install patch ntpdate unzip curl >> ${statusFile} 2>&1"
 redhatCmd2="yum -y install git-core java-1.7.0-openjdk-devel >> ${statusFile} 2>&1"
 redhatCmd3="yum -y install java-1.7.0-openjdk >> ${statusFile} 2>&1"
 redhatCmd4="yum -y install tomcat6 >> ${statusFile} 2>&1"
-redhatCmd5="yum -y install mysql-server >> ${statusFile} 2>&1"
+redhatCmd5="yum -y install mysql-server || yum -y install mysql-community-server >> ${statusFile} 2>&1"
 
 
 redhatCmdEduroam="yum -y install bind-utils ntp samba samba-winbind freeradius freeradius-krb5 freeradius-ldap freeradius-perl freeradius-python freeradius-utils freeradius-mysql make" 
