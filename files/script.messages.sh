@@ -93,6 +93,7 @@ tomcatSettingsFileC="/etc/sysconfig/tomcat6"
 redhatEpel5="rpm -Uvh http://download.fedoraproject.org/pub/epel/5/i386/epel-release-5-4.noarch.rpm"
 redhatEpel6="rpm -Uvh http://download.fedoraproject.org/pub/epel/6/i386/epel-release-6-8.noarch.rpm"
 
+redhatMySQL="rpm -Uvh http://repo.mysql.com/mysql-community-release-el$(lsb_release -rs | cut -f1 -d.).rpm"
 
 # info for validation of required fields for deployer options
 # one long list but broken apart into sections similar to the HTML installer page
