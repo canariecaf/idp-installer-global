@@ -87,12 +87,13 @@ centosCmd1="yum -y install patch ntpdate unzip curl >> ${statusFile} 2>&1"
 centosCmd2="yum -y install git java-1.7.0-openjdk-devel >> ${statusFile} 2>&1"
 centosCmd3="yum -y install java-1.7.0-openjdk >> ${statusFile} 2>&1"
 centosCmd4="yum -y install tomcat6 >> ${statusFile} 2>&1"
-centosCmd5="yum -y install mysql-server >> ${statusFile} 2>&1"
+centosCmd5="yum -y install mysql-server || yum -y install mysql-community-server  >> ${statusFile} 2>&1"
 tomcatSettingsFileC="/etc/sysconfig/tomcat6"
 
 redhatEpel5="rpm -Uvh http://download.fedoraproject.org/pub/epel/5/i386/epel-release-5-4.noarch.rpm"
 redhatEpel6="rpm -Uvh http://download.fedoraproject.org/pub/epel/6/i386/epel-release-6-8.noarch.rpm"
 
+redhatMySQL="rpm -Uvh http://repo.mysql.com/mysql-community-release-el$([ "$(yum search mysql|grep mysql-server)" != "" ] && echo "6" || echo "7").rpm"
 
 # info for validation of required fields for deployer options
 # one long list but broken apart into sections similar to the HTML installer page
