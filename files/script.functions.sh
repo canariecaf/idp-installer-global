@@ -19,8 +19,8 @@ cleanBadInstall() {
 	if [ -d "/opt/mysql-connector-java-5.1.27" ]; then
 		rm -rf /opt/mysql-connector-java-5.1.27
 	fi
-	if [ -f "/usr/share/tomcat/lib/tomcat-dta-ssl-1.0.0.jar" ]; then
-		rm /usr/share/tomcat/lib/tomcat-dta-ssl-1.0.0.jar
+	if [ -f "/usr/share/${tomcatVersion}/lib/${tomcatVersion}-dta-ssl-1.0.0.jar" ]; then
+		rm /usr/share/${tomcatVersion}/lib/${tomcatVersion}-dta-ssl-1.0.0.jar
 	fi
 	if [ -d "/opt/apache-maven-3.1.0/" ]; then
 		rm -rf /opt/apache-maven-3.1.0/
@@ -335,6 +335,21 @@ fi
 
 }
 
+installMysqlRepo() {
+
+        if [ ! -z "`rpm -q mysql-community-release | grep ' is not installed'`" ]; then
+
+                ${Echo} "Detected no MySQL, adding repos into /etc/yum.repos.d/ and updating them"
+                eval $redhatMySQL >> ${statusFile} 2>&1
+
+        else
+
+                ${Echo} "Dected MySQL EXIST on this system. Skipping this step as system already updated"
+        fi
+
+
+}
+
 setHostnames() {
 	FQDN=`hostname`
 	FQDN=`host -t A ${FQDN} | awk '{print $1}' | sed -re 's/\s+//g'`
@@ -417,7 +432,7 @@ installEPTIDSupport ()
 			test=`dpkg -s mysql-server > /dev/null 2>&1`
 			isInstalled=$?
 		else
-			test=`rpm -q mysql-serverd > /dev/null 2>&1`
+			test=`rpm -q mysql-serverd || rpm -q mysql-community-server > /dev/null 2>&1`
 			isInstalled=$?
 		fi
 
@@ -427,37 +442,38 @@ installEPTIDSupport ()
 
 			mysqldTest=`pgrep mysqld`
 			if [ -z "${mysqldTest}" ]; then
-				/etc/init.d/mysqld start >> ${statusFile} 2>&1
+				echo "Starting mysql server" >> ${statusFile}
+				service mysqld start >> ${statusFile} 2>&1
 			fi
 			# set mysql root password
 			tfile=`mktemp`
 			if [ ! -f "$tfile" ]; then
 				return 1
 			fi
-#			cat << EOM > $tfile
-#USE mysql;
-#UPDATE user SET password=PASSWORD("${mysqlPass}") WHERE user='root';
-#FLUSH PRIVILEGES;
-#EOM
-#
-#			mysql --no-defaults -u root -h localhost -pqwe123
-#			retval=$?
-#			# moved removal of MySQL command file to be in the if-then-else statement set below
-#
-#			if [ "${retval}" -ne 0 ]; then
-#				${Echo} "\n\n\nAn error has occurred in the configuration of the MySQL installation."
-#				${Echo} "Please correct the MySQL installation and make sure a root password is set and it is possible to log in using the 'mysql' command."
-#				${Echo} "When MySQL is working, re-run this script."
-#				${Echo} "The file being run in MySQL is ${tfile} and has not been deleted, please review and delete as necessary."
-#				cleanBadInstall
-#			else
-#				rm -f $tfile
-#			fi
-#
-#
-#			if [ "${dist}" != "ubuntu" ]; then
-#				/sbin/chkconfig mysqld on
-#			fi
+			cat << EOM > $tfile
+USE mysql;
+UPDATE user SET password=PASSWORD("${mysqlPass}") WHERE user='root';
+FLUSH PRIVILEGES;
+EOM
+
+			mysql --no-defaults -u root -h localhost <$tfile
+			retval=$?
+			# moved removal of MySQL command file to be in the if-then-else statement set below
+
+			if [ "${retval}" -ne 0 ]; then
+				${Echo} "\n\n\nAn error has occurred in the configuration of the MySQL installation."
+				${Echo} "Please correct the MySQL installation and make sure a root password is set and it is possible to log in using the 'mysql' command."
+				${Echo} "When MySQL is working, re-run this script."
+				${Echo} "The file being run in MySQL is ${tfile} and has not been deleted, please review and delete as necessary."
+				cleanBadInstall
+			else
+				rm -f $tfile
+			fi
+
+
+			if [ "${dist}" != "ubuntu" ]; then
+				/sbin/chkconfig mysqld on
+			fi
 		fi
 
 		fetchMysqlCon
@@ -522,29 +538,21 @@ fi
 installTomcat() {
 	isInstalled="4"
 	if [ "${dist}" = "ubuntu" ]; then
-		test=`dpkg -s tomcat > /dev/null 2>&1`
+		test=`dpkg -s tomcat6 > /dev/null 2>&1`
 		isInstalled=$?
 	else
-	        yum -y install tomcat.noarch
-        	/sbin/chkconfig tomcat on
-        	service tomcat start
+		tomcatVersion=$([ "$(yum search tomcat|grep tomcat6)" != "" ] && echo "tomcat6" || echo "tomcat")
+		test=`rpm -q ${tomcatVersion} > /dev/null 2>&1`
 		isInstalled=$?
 	fi
 	if [ "${isInstalled}" -ne 0 ]; then
+		distCmd4="yum -y install ${tomcatVersion}"
 		eval ${distCmd4}
 		if [ "${dist}" != "ubuntu" ]; then
-			/sbin/chkconfig tomcat on
+			/sbin/chkconfig ${tomcatVersion} on
 		fi
 	fi
 }
-
-installMySQL() {
-	rpm -ivh http://repo.mysql.com/mysql-community-release-el7-5.noarch.rpm
-	/sbin/chkconfig mysqld on
-	service mysqld start
-	mysqladmin password ${mysqlPass}
-}
-
 
 fetchAndUnzipShibbolethIdP ()
 
@@ -580,7 +588,6 @@ mkdir -p ${certpath}
 	
 
 }
-
 
 
 
@@ -932,72 +939,74 @@ runShibbolethInstaller ()
 
 }
 
+
 configShibbolethSSLForLDAPJavaKeystore()
 
 {
 
-# 	Fetch certificates from LDAP servers
-	lcnt=1
-	capture=0
-	ldapCert="ldapcert.pem"
-	${Echo} 'Fetching and installing certificates from LDAP server(s)'
-	for i in `${Echo} ${ldapserver}`; do
-		#Get certificate info
-		${Echo} "QUIT" | openssl s_client -showcerts -connect ${i}:636 > ${certpath}${i}.raw 2>&1
-		files="`${Echo} ${files}` ${certpath}${i}.raw"
+#       Fetch certificates from LDAP servers
+        lcnt=1
+        capture=0
+        ldapCert="ldapcert.pem"
+        ${Echo} 'Fetching and installing certificates from LDAP server(s)'
+        for i in `${Echo} ${ldapserver}`; do
+                #Get certificate info
+                ${Echo} "QUIT" | openssl s_client -showcerts -connect ${i}:636 > ${certpath}${i}.raw 2>&1
+                files="`${Echo} ${files}` ${certpath}${i}.raw"
 
-		for j in `cat ${certpath}${i}.raw | sed -re 's/\ /\*\*\*/g'`; do
-			n=`${Echo} ${j} | sed -re 's/\*\*\*/\ /g'`
-			if [ ! -z "`${Echo} ${n} | grep 'BEGIN CERTIFICATE'`" ]; then
-				capture=1
-				if [ -s "${certpath}${ldapCert}.${lcnt}" ]; then
-					lcnt=`expr ${lcnt} + 1`
-				fi
-			fi
-			if [ ${capture} = 1 ]; then
-				${Echo} ${n} >> ${certpath}${ldapCert}.${lcnt}
-			fi
-			if [ ! -z "`${Echo} ${n} | grep 'END CERTIFICATE'`" ]; then
-				capture=0
-			fi
-		done
-	done
+                for j in `cat ${certpath}${i}.raw | sed -re 's/\ /\*\*\*/g'`; do
+                        n=`${Echo} ${j} | sed -re 's/\*\*\*/\ /g'`
+                        if [ ! -z "`${Echo} ${n} | grep 'BEGIN CERTIFICATE'`" ]; then
+                                capture=1
+                                if [ -s "${certpath}${ldapCert}.${lcnt}" ]; then
+                                        lcnt=`expr ${lcnt} + 1`
+                                fi
+                        fi
+                        if [ ${capture} = 1 ]; then
+                                ${Echo} ${n} >> ${certpath}${ldapCert}.${lcnt}
+                        fi
+                        if [ ! -z "`${Echo} ${n} | grep 'END CERTIFICATE'`" ]; then
+                                capture=0
+                        fi
+                done
+        done
 
-	numLDAPCertificateFiles=0
-	minRequiredLDAPCertificateFiles=1
+        numLDAPCertificateFiles=0
+        minRequiredLDAPCertificateFiles=1
 
-	for i in `ls ${certpath}${ldapCert}.*`; do
+        for i in `ls ${certpath}${ldapCert}.*`; do
 
-		numLDAPCertificateFiles=$[$numLDAPCertificateFiles +1]
-		md5finger=`keytool -printcert -file ${i} | grep MD5 | cut -d: -f2- | sed -re 's/\s+//g'`
-		test=`keytool -list -keystore ${javaCAcerts} -storepass changeit | grep ${md5finger}`
-		subject=`openssl x509 -subject -noout -in ${i} | awk -F= '{print $NF}'`
-		if [ -z "${test}" ]; then
-			keytool -import -noprompt -alias "${subject}" -file ${i} -keystore ${javaCAcerts} -storepass changeit >> ${statusFile} 2>&1
-		fi
-		files="`${Echo} ${files}` ${i}"
-	done
+                numLDAPCertificateFiles=$[$numLDAPCertificateFiles +1]
+                md5finger=`keytool -printcert -file ${i} | grep MD5 | cut -d: -f2- | sed -re 's/\s+//g'`
+                test=`keytool -list -keystore ${javaCAcerts} -storepass changeit | grep ${md5finger}`
+                subject=`openssl x509 -subject -noout -in ${i} | awk -F= '{print $NF}'`
+                if [ -z "${test}" ]; then
+                        keytool -import -noprompt -alias "${subject}" -file ${i} -keystore ${javaCAcerts} -storepass changeit >> ${statusFile} 2>&1
+                fi
+                files="`${Echo} ${files}` ${i}"
+        done
 
-	# note the numerical comparison of 
-	if [ "$numLDAPCertificateFiles" -ge "$minRequiredLDAPCertificateFiles" ]; then
+        # note the numerical comparison of
+        if [ "$numLDAPCertificateFiles" -ge "$minRequiredLDAPCertificateFiles" ]; then
 
-		${Echo} "Successfully fetched LDAP SSL certificate(s) fetch from LDAP directory. Number loaded: ${numLDAPCertificateFiles} into this keystore ${javaCAcerts}\n"
-		
+                ${Echo} "Successfully fetched LDAP SSL certificate(s) fetch from LDAP directory. Number loaded: ${numLDAPCertificateFiles} into this keystore ${javaCAcerts}\n"
 
-	else
-		${Echo} "***SEVERE ERROR*** \n\nAutomatic LDAP SSL certificate fetch from LDAP directory failed!"
-		${Echo} " As a result, the Shibboleth IdP will not connect properly.\nPlease ensure the provided FQDN (NOT IP ADDRESS) is resolvable and pingable before starting again"
-		${Echo} "\n\nCleaning up and exiting"
-		
-		cleanBadInstall
-		exit
-		# Note for dev: if this was called prior to MySQL installation, it may be possible to just run again without doing VM Image restore
 
-	fi
+        else
+#               ${Echo} "***SEVERE ERROR*** \n\nAutomatic LDAP SSL certificate fetch from LDAP directory failed!"
+#               ${Echo} " As a result, the Shibboleth IdP will not connect properly.\nPlease ensure the provided FQDN (NOT IP ADDRESS) is resolvable and pingable before starting again"
+#               ${Echo} "\n\nCleaning up and exiting"
+
+#               cleanBadInstall
+#               exit
+#               # Note for dev: if this was called prior to MySQL installation, it may be possible to just run again without doing VM Image restore
+                echo N
+        fi
 
 
 
 }
+
 
 configTomcatSSLServerKey()
 
@@ -1045,22 +1054,22 @@ patchTomcatConfigs ()
 
 {
 
-	if [ ! -d "/usr/share/tomcat/endorsed" ]; then
-		mkdir /usr/share/tomcat/endorsed
+	if [ ! -d "/usr/share/${tomcatVersion}/endorsed" ]; then
+		mkdir /usr/share/${tomcatVersion}/endorsed
 	fi
 	for i in `ls /opt/shibboleth-identityprovider/endorsed/`; do
-		if [ ! -s "/usr/share/tomcat/endorsed/${i}" ]; then
-			cp /opt/shibboleth-identityprovider/endorsed/${i} /usr/share/tomcat/endorsed
+		if [ ! -s "/usr/share/${tomcatVersion}/endorsed/${i}" ]; then
+			cp /opt/shibboleth-identityprovider/endorsed/${i} /usr/share/${tomcatVersion}/endorsed
 		fi
 	done
 
 	. ${tomcatSettingsFile}
-	if [ -z "`${Echo} ${JAVA_OPTS} | grep '/usr/share/tomcat/endorsed'`" ]; then
-		JAVA_OPTS="`${Echo} ${JAVA_OPTS} | sed -re 's/-Xmx128m//'` -Djava.endorsed.dirs=/usr/share/tomcat/endorsed -Xms512m -Xmx512m -XX:MaxPermSize=128m"
+	if [ -z "`${Echo} ${JAVA_OPTS} | grep '/usr/share/${tomcatVersion}/endorsed'`" ]; then
+		JAVA_OPTS="`${Echo} ${JAVA_OPTS} | sed -re 's/-Xmx128m//'` -Djava.endorsed.dirs=/usr/share/${tomcatVersion}/endorsed -Xms512m -Xmx512m -XX:MaxPermSize=128m"
 		JAVA_OPTS="`${Echo} ${JAVA_OPTS} | sed -re 's/^\s+//'`"
 		${Echo} "JAVA_OPTS=\"${JAVA_OPTS}\"" >> ${tomcatSettingsFile}
 		if [ "${dist}" != "ubuntu" ]; then
-			${Echo} 'JAVA_ENDORSED_DIRS="/usr/share/tomcat/endorsed"' >> ${tomcatSettingsFile}
+			${Echo} 'JAVA_ENDORSED_DIRS="/usr/share/${tomcatVersion}/endorsed"' >> ${tomcatSettingsFile}
 		fi
 	else
 		${Echo} "JAVA_OPTS for tomcat already configured" >> ${messages}
@@ -1084,21 +1093,21 @@ patchTomcatConfigs ()
 		tomcatSSLport="7443"
 	fi
 
-	if [ ! -s "/usr/share/tomcat/lib/tomcat-dta-ssl-1.0.0.jar" ]; then
-		${fetchCmd} /usr/share/tomcat/lib/tomcat-dta-ssl-1.0.0.jar ${tomcatDepend}
+	if [ ! -s "/usr/share/${tomcatVersion}/lib/${tomcatVersion}-dta-ssl-1.0.0.jar" ]; then
+		${fetchCmd} /usr/share/${tomcatVersion}/lib/${tomcatVersion}-dta-ssl-1.0.0.jar ${tomcatDepend}
 
-		if [ ! -s "/usr/share/tomcat/lib/tomcat-dta-ssl-1.0.0.jar" ]; then
+		if [ ! -s "/usr/share/${tomcatVersion}/lib/${tomcatVersion}-dta-ssl-1.0.0.jar" ]; then
 			${Echo} "Can not get tomcat dependancy, aborting install."
 			cleanBadInstall
 		fi
 	fi
 
-	cp /etc/tomcat/server.xml /etc/tomcat/server.xml.${ts}
-	cat ${Spath}/xml/${my_ctl_federation}/server.xml | sed "s/tomcatSSLport/${tomcatSSLport}/" > /etc/tomcat/server.xml
-	chmod o-rwx /etc/tomcat/server.xml
+	cp /etc/${tomcatVersion}/server.xml /etc/${tomcatVersion}/server.xml.${ts}
+	cat ${Spath}/xml/${my_ctl_federation}/server.xml | sed "s/tomcatSSLport/${tomcatSSLport}/" > /etc/${tomcatVersion}/server.xml
+	chmod o-rwx /etc/${tomcatVersion}/server.xml
 
 	tcatUser=`grep "^tomcat" /etc/passwd | cut -d: -f1`
-	chown ${tcatUser} /etc/tomcat/server.xml
+	chown ${tcatUser} /etc/${tomcatVersion}/server.xml
 	chown ${tcatUser} /opt/shibboleth-idp/metadata
 	chown -R ${tcatUser} /opt/shibboleth-idp/logs/
 
@@ -1106,11 +1115,11 @@ patchTomcatConfigs ()
 	chsh -s /bin/bash ${tcatUser}
 
 
-	if [ -d "/var/lib/tomcat/webapps/ROOT" ]; then
-		mv /var/lib/tomcat/webapps/ROOT /opt/disabled.tomcat.webapps.ROOT
+	if [ -d "/var/lib/${tomcatVersion}/webapps/ROOT" ]; then
+		mv /var/lib/${tomcatVersion}/webapps/ROOT /opt/disabled.${tomcatVersion}.webapps.ROOT
 	fi
 	if [ "${dist}" = "ubuntu" ]; then
-		cp /usr/share/tomcat/lib/servlet-api.jar /opt/shibboleth-idp/lib/
+		cp /usr/share/${tomcatVersion}/lib/servlet-api.jar /opt/shibboleth-idp/lib/
 	fi
 
 
@@ -1219,11 +1228,11 @@ updateTomcatAddingIDPWar ()
 {
 	# 	add idp.war to tomcat
 	if [ "${dist}" = "ubuntu" ]; then
-		cp ${Spath}/xml/${my_ctl_federation}/tomcat.idp.xml /var/lib/tomcat/conf/Catalina/localhost/idp.xml
+		cp ${Spath}/xml/${my_ctl_federation}/tomcat.idp.xml /var/lib/${tomcatVersion}/conf/Catalina/localhost/idp.xml
 	else
-		cp ${Spath}/xml/${my_ctl_federation}/tomcat.idp.xml /etc/tomcat/Catalina/localhost/idp.xml
+		cp ${Spath}/xml/${my_ctl_federation}/tomcat.idp.xml /etc/${tomcatVersion}/Catalina/localhost/idp.xml
 		# make sure tomcat can see the file
-		chown tomcat /etc/tomcat/Catalina/localhost/idp.xml
+		chown tomcat /etc/${tomcatVersion}/Catalina/localhost/idp.xml
 
 	fi
 }
@@ -1231,7 +1240,7 @@ updateTomcatAddingIDPWar ()
 restartTomcatService ()
 
 {
-	service tomcat restart
+	service ${tomcatVersion} restart
 }
 
 
@@ -1391,7 +1400,7 @@ enableTomcatOnRestart ()
 		ckCmd="/sbin/chkconfig"
 		ckArgs="--level 3"
 		ckState="on" 
-		ckServices="tomcat"
+		ckServices=${tomcatVersion}
 
 		for myService in $ckServices
 		do
@@ -1438,9 +1447,9 @@ ${whiptailBin} --backtitle "${GUIbacktitle}" --title "Deploy Shibboleth customiz
 
 	generatePasswordsForSubsystems
 
+	installMysqlRepo
+
 	installTomcat
-	
-	installMySQL
 	
 	# moved from above tomcat, to here just after.
 
