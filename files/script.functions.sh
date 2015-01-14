@@ -914,6 +914,10 @@ runShibbolethInstaller ()
         cd /opt/${shibDir}
         ${Echo} "Running shiboleth installer"
 
+        # Extract AD domain from baseDN
+        ldapbasedn_tmp=$(echo ${ldapbasedn}  | tr '[:upper:]' '[:lower:]')
+        ldapDomain=$(echo ${ldapbasedn_tmp#ou*dc=} | sed "s/,dc=/./g")
+
         cat << EOM > idp.properties.tmp
 idp.entityID            = https://${certCN}/idp/shibboleth
 idp.sealer.storePassword= ${pass}
@@ -922,19 +926,21 @@ EOM
 
 
         cat << EOM > ldap.properties.tmp
-idp.authn.LDAP.ldapURL                          = ${ldapServerStr}:636
-idp.authn.LDAP.useStartTLS                      = false
-idp.authn.LDAP.useSSL                           = true
+idp.authn.LDAP.authenticator                    = adAuthenticator
+idp.authn.LDAP.ldapURL                          = ldap://${ldapserver}
+idp.authn.LDAP.useStartTLS                      = true
+idp.authn.LDAP.useSSL                           = false
+idp.authn.LDAP.sslConfig                        = certificateTrust
 idp.authn.LDAP.trustCertificates                = %{idp.home}/ssl/ldap-server.crt
 idp.authn.LDAP.trustStore                       = %{idp.home}/credentials/ldap-server.truststore
 idp.authn.LDAP.returnAttributes                 = cn,mail
 idp.authn.LDAP.baseDN                           = ${ldapbasedn}
-idp.authn.LDAP.userFilter                       = (uid={user})
+idp.authn.LDAP.subtreeSearch                    = true
+idp.authn.LDAP.userFilter                       = (uid={0})
 idp.authn.LDAP.bindDN                           = ${ldapbinddn}
 idp.authn.LDAP.bindDNCredential                 = ${ldappass}
-idp.authn.LDAP.dnFormat                         = uid=%s,ou=people,dc=example,dc=org
+idp.authn.LDAP.dnFormat                         = %s@${ldapDomain}
 EOM
-
 
         JAVA_HOME=/usr/java/default sh bin/install.sh \
         -Didp.src.dir=./ \
