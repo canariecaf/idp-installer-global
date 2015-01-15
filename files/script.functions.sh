@@ -493,7 +493,6 @@ EOM
 
         }
 
-
 installCasClientIfEnabled() {
 
 if [ "${type}" = "cas" ]; then
@@ -519,16 +518,17 @@ if [ "${type}" = "cas" ]; then
 		caslogurl=$(askString "CAS login URL" "Please input the Login URL to your CAS server (https://cas.xxx.yy/cas/login)" "${casurl}/login")
 	fi
 
-	cp /opt/cas-client-${casVer}/modules/cas-client-core-${casVer}.jar /opt/${shibDir}/lib/
-	mkdir /opt/${shibDir}/src/main/webapp/WEB-INF/lib
-	cp /opt/cas-client-${casVer}/modules/cas-client-core-${casVer}.jar /opt/${shibDir}/src/main/webapp/WEB-INF/lib
+	cp /opt/cas-client-${casVer}/modules/cas-client-core-${casVer}.jar /opt/shibboleth-idp/edit-webapp/WEB-INF/lib/
+	cp /opt/shibboleth-idp/webapp/WEB-INF/web.xml /opt/shibboleth-idp/edit-webapp/WEB-INF/
 	
 	cat ${Spath}/${prep}/${shibDir}-web.xml.diff.template \
 		| sed -re "s#IdPuRl#${idpurl}#;s#CaSuRl#${caslogurl}#;s#CaS2uRl#${casurl}#" \
 		> ${Spath}/${prep}/${shibDir}-web.xml.diff
 	files="`${Echo} ${files}` ${Spath}/${prep}/${shibDir}-web.xml.diff"
 
-	patch /opt/${shibDir}/src/main/webapp/WEB-INF/web.xml -i ${Spath}/${prep}/${shibDir}-web.xml.diff >> ${statusFile} 2>&1
+	patch /opt/shibboleth-idp/edit-webapp/WEB-INF/web.xml -i ${Spath}/${prep}/${shibDir}-web.xml.diff >> ${statusFile} 2>&1
+
+	/opt/shibboleth-idp/bin/build.sh -Didp.target.dir=/opt/shibboleth-idp
 
 else
 	${Echo} "Authentication type: ${type}, CAS Client Not Requested"
@@ -731,8 +731,11 @@ askForConfigurationData() {
 		selfsigned=$(askYesNo "Self signed certificate" "Create a self signed certificate for HTTPS?\n\nThis is NOT recommended for production systems! Only for testing purposes" "y")
 	fi
 
-	pass=$(askString "IDP keystore password" "The IDP keystore is for the Shibboleth software itself and not the webserver. Please set your IDP keystore password.\nAn empty string generates a randomized new password" "" 1)
-	httpspass=$(askString "HTTPS Keystore password" "The webserver uses a separate keystore for itself. Please input your Keystore password for the end user facing HTTPS.\n\nAn empty string generates a randomized new password" "" 1)
+	if [ "${disable_passw_input}" != "y" ]; then
+		pass=$(askString "IDP keystore password" "The IDP keystore is for the Shibboleth software itself and not the webserver. Please set your IDP keystore password.\nAn empty string generates a randomized new password" "" 1)
+		httpspass=$(askString "HTTPS Keystore password" "The webserver uses a separate keystore for itself. Please input your Keystore password for the end user facing HTTPS.\n\nAn empty string generates a randomized new password" "" 1)
+	fi
+
 }
 
 setDistCommands() {
@@ -914,43 +917,101 @@ runShibbolethInstaller ()
         cd /opt/${shibDir}
         ${Echo} "Running shiboleth installer"
 
-        # Extract AD domain from baseDN
-        ldapbasedn_tmp=$(echo ${ldapbasedn}  | tr '[:upper:]' '[:lower:]')
-        ldapDomain=$(echo ${ldapbasedn_tmp#ou*dc=} | sed "s/,dc=/./g")
+	if [ "${type}" = "ldap" ]; then
 
-        cat << EOM > idp.properties.tmp
+		# Set default values
+
+                if [ -x ${ldap_type} ]; then
+                        ldap_type="ad"
+                fi
+
+		if [ -x ${ldapStartTLS} ]; then
+			ldapStartTLS="true"
+		fi
+
+                if [ -x ${ldapSSL} ]; then
+                        ldapSSL="false"
+		fi
+
+                if [ -x ${user_field} ]; then
+                        user_field="samaccountname"
+                fi
+
+                if [ -x ${ldap_attr} ]; then
+                        ldap_attr="cn,mail"
+                fi
+
+		# ActiveDirectory specific
+		if [ "${ldap_type}" = "ad" ]; then
+
+                        #Set idp.authn.LDAP.authenticator
+                        ldapAuthenticator="adAuthenticator"
+			ldapDnFormat="%s@${Dname}"
+
+		# Other LDAP implementations
+		else
+			#Set idp.authn.LDAP.authenticator
+                        ldapAuthenticator="bindSearchAuthenticator"
+			ldapDnFormat="uid=%s,${ldapbasedn}"
+		fi
+
+		cat << EOM > idp.properties.tmp
 idp.entityID            = https://${certCN}/idp/shibboleth
 idp.sealer.storePassword= ${pass}
 idp.sealer.keyPassword  = ${pass}
+idp.authn.flows		= Password
 EOM
 
-
-        cat << EOM > ldap.properties.tmp
-idp.authn.LDAP.authenticator                    = adAuthenticator
+        	cat << EOM > ldap.properties.tmp
+idp.authn.LDAP.authenticator                    = ${ldapAuthenticator}
 idp.authn.LDAP.ldapURL                          = ldap://${ldapserver}
-idp.authn.LDAP.useStartTLS                      = true
-idp.authn.LDAP.useSSL                           = false
+idp.authn.LDAP.useStartTLS                      = ${ldapStartTLS}
+idp.authn.LDAP.useSSL                           = ${ldapSSL}
 idp.authn.LDAP.sslConfig                        = certificateTrust
 idp.authn.LDAP.trustCertificates                = %{idp.home}/ssl/ldap-server.crt
 idp.authn.LDAP.trustStore                       = %{idp.home}/credentials/ldap-server.truststore
-idp.authn.LDAP.returnAttributes                 = cn,mail
+idp.authn.LDAP.returnAttributes                 = ${ldap_attr}
 idp.authn.LDAP.baseDN                           = ${ldapbasedn}
 idp.authn.LDAP.subtreeSearch                    = true
-idp.authn.LDAP.userFilter                       = (uid={0})
+idp.authn.LDAP.userFilter                       = (uid=\{${user_field}\})
 idp.authn.LDAP.bindDN                           = ${ldapbinddn}
 idp.authn.LDAP.bindDNCredential                 = ${ldappass}
-idp.authn.LDAP.dnFormat                         = %s@${ldapDomain}
+idp.authn.LDAP.dnFormat                         = ${ldapDnFormat}
 EOM
 
-        JAVA_HOME=/usr/java/default sh bin/install.sh \
-        -Didp.src.dir=./ \
-        -Didp.target.dir=/opt/shibboleth-idp \
-        -Didp.host.name="${certCN}" \
-        -Didp.scope="${certCN}" \
-        -Didp.keystore.password="${pass}" \
-        -Didp.sealer.password="${pass}" \
-        -Dldap.merge.properties=./ldap.properties.tmp \
-        -Didp.merge.properties=./idp.properties.tmp
+	        JAVA_HOME=/usr/java/default sh bin/install.sh \
+        	-Didp.src.dir=./ \
+        	-Didp.target.dir=/opt/shibboleth-idp \
+        	-Didp.host.name="${certCN}" \
+        	-Didp.scope="${certCN}" \
+        	-Didp.keystore.password="${pass}" \
+        	-Didp.sealer.password="${pass}" \
+        	-Dldap.merge.properties=./ldap.properties.tmp \
+        	-Didp.merge.properties=./idp.properties.tmp
+
+
+	elif [ "${type}" = "cas" ]; then
+
+		#cdinro
+                cat << EOM > idp.properties.tmp
+idp.entityID            = https://${certCN}/idp/shibboleth
+idp.sealer.storePassword= ${pass}
+idp.sealer.keyPassword  = ${pass}
+idp.authn.flows         = RemoteUser
+EOM
+
+
+                JAVA_HOME=/usr/java/default sh bin/install.sh \
+                -Didp.src.dir=./ \
+                -Didp.target.dir=/opt/shibboleth-idp \
+                -Didp.host.name="${certCN}" \
+                -Didp.scope="${certCN}" \
+                -Didp.keystore.password="${pass}" \
+                -Didp.sealer.password="${pass}" \
+                -Didp.merge.properties=./idp.properties.tmp
+
+	fi
+
 
 }
 
@@ -1538,9 +1599,6 @@ invokeShibbolethInstallProcessJetty9 ()
 	[[ "${upgrade}" -ne 1 ]] && fetchAndUnzipShibbolethIdP
 
 
-	installCasClientIfEnabled
-
-
 	installFticksIfEnabled
 
 
@@ -1553,6 +1611,7 @@ invokeShibbolethInstallProcessJetty9 ()
 
 	runShibbolethInstaller
 
+	installCasClientIfEnabled
 
 	createCertificatePathAndHome
 

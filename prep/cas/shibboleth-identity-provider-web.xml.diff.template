@@ -1,8 +1,9 @@
-21a22,97
+30a31,109
+> 
 > <!-- CAS Filter Configuration -->
 > <context-param>
 >   <param-name>serverName</param-name>
->   <param-value>IdPuRl</param-value>                                      <!-- CHANGE HERE - IDP url -->
+>   <param-value>https://idp.canarie.ca</param-value>                                      <!-- CHANGE HERE - IDP url -->
 > </context-param>
 > 
 > <!-- CAS Authentication Filter -->
@@ -73,5 +74,7 @@
 > <filter-mapping>
 >   <filter-name>CAS Assertion Thread Local Filter</filter-name>
 >   <url-pattern>/Authn/RemoteUser</url-pattern>
-> </filter-mapping> 
+> </filter-mapping>
+> 
+> 
 > 
