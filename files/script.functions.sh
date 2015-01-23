@@ -144,8 +144,10 @@ setJavaHome () {
         ln -s /usr/java/jre${javaVer}/ /usr/java/latest
         ln -s /usr/java/latest /usr/java/default
         export JAVA_HOME="/usr/java/default"
+        export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
         #Set the alternatives
         for i in `ls $JAVA_HOME/bin/`; do rm -f /var/lib/alternatives/$i;update-alternatives --install /usr/bin/$i $i $JAVA_HOME/bin/$i 100; done
+        for i in `ls $JAVA_HOME/bin/`;do update-alternatives --set $i $JAVA_HOME/bin/$i; done
 
         echo "***javahome is: ${JAVA_HOME}"
         # validate java_home and ensure it runs as expected before going any further
@@ -181,16 +183,14 @@ setJavaHome () {
 
 }
 
-
 setJavaCACerts ()
+
 {
-	# 	set path to ca cert file
-	if [ -f "/etc/ssl/certs/java/cacerts" ]; then
-		javaCAcerts="/etc/ssl/certs/java/cacerts"
-	else
-		javaCAcerts="${JAVA_HOME}/lib/security/cacerts"
-	fi
+        javaCAcerts="${JAVA_HOME}/lib/security/cacerts"
+        keytool="${JAVA_HOME}/bin/keytool"
+	
 }
+
 
 generatePasswordsForSubsystems ()
 
@@ -394,21 +394,6 @@ fetchMysqlCon() {
 }
 
 
-
-installFticksIfEnabled() {
-
-if [ "${fticks}" != "n" ]; then
-	cp ${downloadPath}/ndn-shib-fticks-0.0.1-SNAPSHOT.jar /opt/${shibDir}/lib
-
-else
-	${Echo} "NOT Installing ndn-shib-fticks"
-
-fi
-
-
-}
-
-
 installEPTIDSupport ()
         {
         if [ "${eptid}" != "n" ]; then
@@ -493,7 +478,6 @@ EOM
 
         }
 
-
 installCasClientIfEnabled() {
 
 if [ "${type}" = "cas" ]; then
@@ -519,16 +503,17 @@ if [ "${type}" = "cas" ]; then
 		caslogurl=$(askString "CAS login URL" "Please input the Login URL to your CAS server (https://cas.xxx.yy/cas/login)" "${casurl}/login")
 	fi
 
-	cp /opt/cas-client-${casVer}/modules/cas-client-core-${casVer}.jar /opt/${shibDir}/lib/
-	mkdir /opt/${shibDir}/src/main/webapp/WEB-INF/lib
-	cp /opt/cas-client-${casVer}/modules/cas-client-core-${casVer}.jar /opt/${shibDir}/src/main/webapp/WEB-INF/lib
+	cp /opt/cas-client-${casVer}/modules/cas-client-core-${casVer}.jar /opt/shibboleth-idp/edit-webapp/WEB-INF/lib/
+	cp /opt/shibboleth-idp/webapp/WEB-INF/web.xml /opt/shibboleth-idp/edit-webapp/WEB-INF/
 	
 	cat ${Spath}/${prep}/${shibDir}-web.xml.diff.template \
 		| sed -re "s#IdPuRl#${idpurl}#;s#CaSuRl#${caslogurl}#;s#CaS2uRl#${casurl}#" \
 		> ${Spath}/${prep}/${shibDir}-web.xml.diff
 	files="`${Echo} ${files}` ${Spath}/${prep}/${shibDir}-web.xml.diff"
 
-	patch /opt/${shibDir}/src/main/webapp/WEB-INF/web.xml -i ${Spath}/${prep}/${shibDir}-web.xml.diff >> ${statusFile} 2>&1
+	patch /opt/shibboleth-idp/edit-webapp/WEB-INF/web.xml -i ${Spath}/${prep}/${shibDir}-web.xml.diff >> ${statusFile} 2>&1
+
+	/opt/shibboleth-idp/bin/build.sh -Didp.target.dir=/opt/shibboleth-idp
 
 else
 	${Echo} "Authentication type: ${type}, CAS Client Not Requested"
@@ -599,11 +584,11 @@ ${Echo} "Fetching TCS CA chain from web"
         done
         ccnt=1
         while [ ${ccnt} -lt ${cnt} ]; do
-                md5finger=`keytool -printcert -file ${certpath}${ccnt}.root | grep MD5 | cut -d: -f2- | sed -re 's/\s+//g'`
-                test=`keytool -list -keystore ${javaCAcerts} -storepass changeit | grep ${md5finger}`
+                md5finger=`${keytool} -printcert -file ${certpath}${ccnt}.root | grep MD5 | cut -d: -f2- | sed -re 's/\s+//g'`
+                test=`${keytool} -list -keystore ${javaCAcerts} -storepass changeit | grep ${md5finger}`
                 subject=`openssl x509 -subject -noout -in ${certpath}${ccnt}.root | awk -F= '{print $NF}'`
                 if [ -z "${test}" ]; then
-                        keytool -import -noprompt -trustcacerts -alias "${subject}" -file ${certpath}${ccnt}.root -keystore ${javaCAcerts} -storepass changeit >> ${statusFile} 2>&1
+                        ${keytool} -import -noprompt -trustcacerts -alias "${subject}" -file ${certpath}${ccnt}.root -keystore ${javaCAcerts} -storepass changeit >> ${statusFile} 2>&1
                 fi
                 files="`${Echo} ${files}` ${certpath}${ccnt}.root"
                 ccnt=`expr ${ccnt} + 1`
@@ -731,8 +716,11 @@ askForConfigurationData() {
 		selfsigned=$(askYesNo "Self signed certificate" "Create a self signed certificate for HTTPS?\n\nThis is NOT recommended for production systems! Only for testing purposes" "y")
 	fi
 
-	pass=$(askString "IDP keystore password" "The IDP keystore is for the Shibboleth software itself and not the webserver. Please set your IDP keystore password.\nAn empty string generates a randomized new password" "" 1)
-	httpspass=$(askString "HTTPS Keystore password" "The webserver uses a separate keystore for itself. Please input your Keystore password for the end user facing HTTPS.\n\nAn empty string generates a randomized new password" "" 1)
+	if [ "${passw_input}" = "y" ]; then
+		pass=$(askString "IDP keystore password" "The IDP keystore is for the Shibboleth software itself and not the webserver. Please set your IDP keystore password.\nAn empty string generates a randomized new password" "" 1)
+		httpspass=$(askString "HTTPS Keystore password" "The webserver uses a separate keystore for itself. Please input your Keystore password for the end user facing HTTPS.\n\nAn empty string generates a randomized new password" "" 1)
+	fi
+
 }
 
 setDistCommands() {
@@ -899,7 +887,6 @@ configShibbolethXMLAttributeResolverForLDAP ()
 	ldapServerStr=`${Echo} ${ldapServerStr} | sed -re 's/^\s+//'`
 	orgTopDomain=`${Echo} ${certCN} | cut -d. -f2-`
 	cat ${Spath}/xml/${my_ctl_federation}/attribute-resolver.xml.template \
-		| sed -re "s#LdApUrI#${ldapServerStr}#;s/LdApBaSeDn/${ldapbasedn}/;s/LdApCrEdS/${ldapbinddn}/;s/LdApPaSsWoRd/${ldappass}/" \
 		| sed -re "s/NiNcRePlAcE/${ninc}/;s/CeRtAcRoNyM/${certAcro}/;s/CeRtOrG/${certOrg}/;s/CeRtC/${certC}/;s/CeRtLoNgC/${certLongC}/" \
 		| sed -re "s/SCHAC_HOME_ORG/${orgTopDomain}/" \
 		> ${Spath}/xml/${my_ctl_federation}/attribute-resolver.xml
@@ -914,43 +901,98 @@ runShibbolethInstaller ()
         cd /opt/${shibDir}
         ${Echo} "Running shiboleth installer"
 
-        # Extract AD domain from baseDN
-        ldapbasedn_tmp=$(echo ${ldapbasedn}  | tr '[:upper:]' '[:lower:]')
-        ldapDomain=$(echo ${ldapbasedn_tmp#ou*dc=} | sed "s/,dc=/./g")
 
-        cat << EOM > idp.properties.tmp
+	# Set some default values
+
+        if [ -x ${ldap_type} ]; then
+                ldap_type="ad"
+        fi
+
+	if [ -x ${ldapStartTLS} ]; then
+		ldapStartTLS="true"
+	fi
+
+        if [ -x ${ldapSSL} ]; then
+                ldapSSL="false"
+	fi
+
+        if [ -x ${user_field} ]; then
+                user_field="samaccountname"
+        fi
+
+        if [ -x ${ldap_attr} ]; then
+                ldap_attr="cn,mail"
+        fi
+
+	# ActiveDirectory specific
+	if [ "${ldap_type}" = "ad" ]; then
+
+              #Set idp.authn.LDAP.authenticator
+              ldapAuthenticator="adAuthenticator"
+	      # Extract AD domain from baseDN
+	      ldapbasedn_tmp=$(echo ${ldapbasedn}  | tr '[:upper:]' '[:lower:]')
+	      ldapDomain=$(echo ${ldapbasedn_tmp#ou*dc=} | sed "s/,dc=/./g")
+	      ldapDnFormat="%s@${ldapDomain}"
+
+	 # Other LDAP implementations
+	 else
+	       #Set idp.authn.LDAP.authenticator
+               ldapAuthenticator="bindSearchAuthenticator"
+	       ldapDnFormat="uid=%s,${ldapbasedn}"
+	 fi
+
+
+	if [ "${type}" = "ldap" ]; then
+
+	       cat << EOM > idp.properties.tmp
 idp.entityID            = https://${certCN}/idp/shibboleth
 idp.sealer.storePassword= ${pass}
 idp.sealer.keyPassword  = ${pass}
+idp.authn.flows		= Password
 EOM
 
+	elif [ "${type}" = "cas" ]; then
 
+                cat << EOM > idp.properties.tmp
+idp.entityID            = https://${certCN}/idp/shibboleth
+idp.sealer.storePassword= ${pass}
+idp.sealer.keyPassword  = ${pass}
+idp.authn.flows         = RemoteUser
+EOM
+
+	fi
+
+	# Set LDAP configuration (needed for both cas and ldap)
         cat << EOM > ldap.properties.tmp
-idp.authn.LDAP.authenticator                    = adAuthenticator
+idp.authn.LDAP.authenticator                    = ${ldapAuthenticator}
 idp.authn.LDAP.ldapURL                          = ldap://${ldapserver}
-idp.authn.LDAP.useStartTLS                      = true
-idp.authn.LDAP.useSSL                           = false
+idp.authn.LDAP.useStartTLS                      = ${ldapStartTLS}
+idp.authn.LDAP.useSSL                           = ${ldapSSL}
 idp.authn.LDAP.sslConfig                        = certificateTrust
 idp.authn.LDAP.trustCertificates                = %{idp.home}/ssl/ldap-server.crt
 idp.authn.LDAP.trustStore                       = %{idp.home}/credentials/ldap-server.truststore
-idp.authn.LDAP.returnAttributes                 = cn,mail
+idp.authn.LDAP.returnAttributes                 = ${ldap_attr}
 idp.authn.LDAP.baseDN                           = ${ldapbasedn}
 idp.authn.LDAP.subtreeSearch                    = true
-idp.authn.LDAP.userFilter                       = (uid={0})
+idp.authn.LDAP.userFilter                       = (uid=\{${user_field}\})
 idp.authn.LDAP.bindDN                           = ${ldapbinddn}
 idp.authn.LDAP.bindDNCredential                 = ${ldappass}
-idp.authn.LDAP.dnFormat                         = %s@${ldapDomain}
+idp.authn.LDAP.dnFormat                         = ${ldapDnFormat}
 EOM
 
-        JAVA_HOME=/usr/java/default sh bin/install.sh \
-        -Didp.src.dir=./ \
-        -Didp.target.dir=/opt/shibboleth-idp \
-        -Didp.host.name="${certCN}" \
-        -Didp.scope="${certCN}" \
-        -Didp.keystore.password="${pass}" \
-        -Didp.sealer.password="${pass}" \
-        -Dldap.merge.properties=./ldap.properties.tmp \
-        -Didp.merge.properties=./idp.properties.tmp
+	# Run the installer
+	JAVA_HOME=/usr/java/default sh bin/install.sh \
+	-Didp.src.dir=./ \
+	-Didp.target.dir=/opt/shibboleth-idp \
+	-Didp.host.name="${certCN}" \
+	-Didp.scope="${certCN}" \
+	-Didp.keystore.password="${pass}" \
+	-Didp.sealer.password="${pass}" \
+	-Dldap.merge.properties=./ldap.properties.tmp \
+	-Didp.merge.properties=./idp.properties.tmp
+
+	# Setting ownership
+	chown -R jetty /opt/shibboleth-idp/
 
 }
 
@@ -992,11 +1034,11 @@ configShibbolethSSLForLDAPJavaKeystore()
 	for i in `ls ${certpath}${ldapCert}.*`; do
 
 		numLDAPCertificateFiles=$[$numLDAPCertificateFiles +1]
-		md5finger=`keytool -printcert -file ${i} | grep MD5 | cut -d: -f2- | sed -re 's/\s+//g'`
-		test=`keytool -list -keystore ${javaCAcerts} -storepass changeit | grep ${md5finger}`
+		md5finger=`${keytool} -printcert -file ${i} | grep MD5 | cut -d: -f2- | sed -re 's/\s+//g'`
+		test=`${keytool} -list -keystore ${javaCAcerts} -storepass changeit | grep ${md5finger}`
 		subject=`openssl x509 -subject -noout -in ${i} | awk -F= '{print $NF}'`
 		if [ -z "${test}" ]; then
-			keytool -import -noprompt -alias "${subject}" -file ${i} -keystore ${javaCAcerts} -storepass changeit >> ${statusFile} 2>&1
+			${keytool} -import -noprompt -alias "${subject}" -file ${i} -keystore ${javaCAcerts} -storepass changeit >> ${statusFile} 2>&1
 		fi
 		files="`${Echo} ${files}` ${i}"
 	done
@@ -1080,70 +1122,6 @@ configShibbolethFederationValidationKey ()
 	if [ "${cFinger}" != "${mdSignerFinger}" ]; then
 		 ${Echo} "Fingerprint error on md-signer.crt!\nGet ther certificate from http://md.swamid.se/md/md-signer.crt and verify it, then place it in the file: ${idpPath}/credentials/md-signer.crt" >> ${messages}
 	fi
-
-}
-
-
-patchShibbolethConfigs ()
-{
-
-# patch shibboleth config files
-	${Echo} "Patching config files"
-	mv /opt/shibboleth-idp/conf/attribute-filter.xml /opt/shibboleth-idp/conf/attribute-filter.xml.dist
-	cp ${Spath}/files/${my_ctl_federation}/attribute-filter.xml /opt/shibboleth-idp/conf/attribute-filter.xml
-	patch /opt/shibboleth-idp/conf/handler.xml -i ${Spath}/${prep}/handler.xml.diff >> ${statusFile} 2>&1
-	patch /opt/shibboleth-idp/conf/relying-party.xml -i ${Spath}/xml/${my_ctl_federation}/relying-party.xml.diff >> ${statusFile} 2>&1
-# 	patch /opt/shibboleth-idp/conf/attribute-resolver.xml -i ${Spath}/xml/${my_ctl_federation}/attribute-resolver.xml.diff >> ${statusFile} 2>&1
-	cp ${Spath}/xml/${my_ctl_federation}/attribute-resolver.xml /opt/shibboleth-idp/conf/attribute-resolver.xml
-
-	if [ "${google}" != "n" ]; then
-		repStr='<!-- PLACEHOLDER DO NOT REMOVE -->'
-		sed -i -e "/^${repStr}$/r ${Spath}/xml/${my_ctl_federation}/google-filter.add" -e "/^${repStr}$/d" /opt/shibboleth-idp/conf/attribute-filter.xml
-		cat ${Spath}/xml/${my_ctl_federation}/google-relay.diff.template | sed -re "s/IdPfQdN/${certCN}/" > ${Spath}/xml/${my_ctl_federation}/google-relay.diff
-		files="`${Echo} ${files}` ${Spath}/xml/${my_ctl_federation}/google-relay.diff"
-		patch /opt/shibboleth-idp/conf/relying-party.xml -i ${Spath}/xml/${my_ctl_federation}/google-relay.diff >> ${statusFile} 2>&1
-		cat ${Spath}/xml/${my_ctl_federation}/google.xml | sed -re "s/GoOgLeDoMaIn/${googleDom}/" > /opt/shibboleth-idp/metadata/google.xml
-	fi
-
-	if [ "${fticks}" != "n" ]; then
-		cp ${Spath}/xml/${my_ctl_federation}/fticks_logging.xml /opt/shibboleth-idp/conf/logging.xml
-		touch /opt/shibboleth-idp/conf/fticks-key.txt
-		chown ${tcatUser} /opt/shibboleth-idp/conf/fticks-key.txt
-	fi
-
-	if [ "${eptid}" != "n" ]; then
-		epass=`${passGenCmd}`
-# 		grant sql access for shibboleth
-		esalt=`openssl rand -base64 36 2>/dev/null`
-		cat ${Spath}/xml/${my_ctl_federation}/eptid.sql.template | sed -re "s#SqLpAsSwOrD#${epass}#" > ${Spath}/xml/${my_ctl_federation}/eptid.sql
-		files="`${Echo} ${files}` ${Spath}/xml/${my_ctl_federation}/eptid.sql"
-
-		${Echo} "Create MySQL database and shibboleth user."
-		mysql -uroot -p"${mysqlPass}" < ${Spath}/xml/${my_ctl_federation}/eptid.sql
-		retval=$?
-		if [ "${retval}" -ne 0 ]; then
-			${Echo} "Failed to create EPTID database, take a look in the file '${Spath}/xml/${my_ctl_federation}/eptid.sql.template' and corect the issue." >> ${messages}
-			${Echo} "Password for the database user can be found in: /opt/shibboleth-idp/conf/attribute-resolver.xml" >> ${messages}
-		fi
-			
-		cat ${Spath}/xml/${my_ctl_federation}/eptid.add.attrCon.template \
-			| sed -re "s#SqLpAsSwOrD#${epass}#;s#Large_Random_Salt_Value#${esalt}#" \
-			> ${Spath}/xml/${my_ctl_federation}/eptid.add.attrCon
-		files="`${Echo} ${files}` ${Spath}/xml/${my_ctl_federation}/eptid.add.attrCon"
-
-		repStr='<!-- EPTID RESOLVER PLACEHOLDER -->'
-		sed -i -e "/^${repStr}$/r ${Spath}/xml/${my_ctl_federation}/eptid.add.resolver" -e "/^${repStr}$/d" /opt/shibboleth-idp/conf/attribute-resolver.xml
-
-		repStr='<!-- EPTID ATTRIBUTE CONNECTOR PLACEHOLDER -->'
-		sed -i -e "/^${repStr}$/r ${Spath}/xml/${my_ctl_federation}/eptid.add.attrCon" -e "/^${repStr}$/d" /opt/shibboleth-idp/conf/attribute-resolver.xml
-
-		repStr='<!-- EPTID PRINCIPAL CONNECTOR PLACEHOLDER -->'
-		sed -i -e "/^${repStr}$/r ${Spath}/xml/${my_ctl_federation}/eptid.add.princCon" -e "/^${repStr}$/d" /opt/shibboleth-idp/conf/attribute-resolver.xml
-
-		repStr='<!-- EPTID FILTER PLACEHOLDER -->'
-		sed -i -e "/^${repStr}$/r ${Spath}/xml/${my_ctl_federation}/eptid.add.filter" -e "/^${repStr}$/d" /opt/shibboleth-idp/conf/attribute-filter.xml
-	fi
-
 
 }
 
@@ -1279,10 +1257,6 @@ ${Echo} "Previous installation found, performing upgrade."
 		installCasClientIfEnabled
 	fi
 
-	if [ "${fticks}" != "n" ]; then
-		installFticksIfEnabled
-	fi
-
 	if [ -d "/opt/mysql-connector-java-${mysqlConVer}/" ]; then
 		cp /opt/mysql-connector-java-${mysqlConVer}/mysql-connector-java-${mysqlConVer}-bin.jar /opt/${shibDir}/lib/
 	fi
@@ -1300,39 +1274,34 @@ fi
 
 installJetty() {
 
-#Install specific version
-#jetty9URL="http://eclipse.org/downloads/download.php?file=/jetty/9.2.4.v20141103/dist/jetty-distribution-9.2.4.v20141103.tar.gz&r=1"
-#jetty9File="${jetty9URL##*/}"
-#jetty9Path=`basename ${jetty9File}  .tar.gz`
+	#Install specific version
+	#jetty9URL="http://eclipse.org/downloads/download.php?file=/jetty/9.2.4.v20141103/dist/jetty-distribution-9.2.4.v20141103.tar.gz&r=1"
+	#jetty9File="${jetty9URL##*/}"
+	#jetty9Path=`basename ${jetty9File}  .tar.gz`
 
-#Download latest stable
-jetty9File=`curl -s http://download.eclipse.org/jetty/stable-9/dist/ | grep -oP "(?>)jetty-distribution.*tar.gz(?=&)"`
-jetty9Path=`basename ${jetty9File}  .tar.gz`
-jetty9URL="http://download.eclipse.org/jetty/stable-9/dist/${jetty9File}"
+	#Download latest stable
+	jetty9File=`curl -s http://download.eclipse.org/jetty/stable-9/dist/ | grep -oP "(?>)jetty-distribution.*tar.gz(?=&)"`
+	jetty9Path=`basename ${jetty9File}  .tar.gz`
+	jetty9URL="http://download.eclipse.org/jetty/stable-9/dist/${jetty9File}"
 
-        if [ -a "/opt/${jetty9Path}/bin/jetty.sh" ]
-        then
-                echo "Jetty detected as installed"
-        else
-                if [ ! -s "${downloadPath}/${jetty9File}" ]; then
-                        echo "Fetching Jetty from ${jetty9URL}"
-                        ${fetchCmd} ${downloadPath}/${jetty9File} "{$jetty9URL}"
-                fi
-                cd /opt
-                tar zxf ${downloadPath}/${jetty9File} >> ${statusFile} 2>&1
-                mkdir -p "/opt/${jetty9Path}/base/tmp"
-                for i in etc lib resources webapps logs start.ini; do cp -r /opt/${jetty9Path}/$i /opt/${jetty9Path}/base/; done
-                ln -s /opt/${jetty9Path} /opt/jetty
-                sed -i 's/\# JETTY_HOME/JETTY_HOME=\/opt\/jetty/g' /opt/jetty/bin/jetty.sh
-                sed -i 's/\# JETTY_USER/JETTY_USER=jetty/g' /opt/jetty/bin/jetty.sh
-                sed -i 's/\# JETTY_BASE/JETTY_BASE=\/opt\/jetty\/base/g' /opt/jetty/bin/jetty.sh
-                sed -i 's/TMPDIR:-\/tmp/TMPDIR:-\/opt\/jetty\/base\/tmp/g' /opt/jetty/bin/jetty.sh
-                cat ${Spath}/files/jetty.sh > /opt/jetty/bin/jetty.sh
-                useradd jetty
-                chown jetty:jetty /opt/jetty/ -R
-                ln -s /opt/jetty/bin/jetty.sh /etc/init.d/jetty
+        if [ ! -s "${downloadPath}/${jetty9File}" ]; then
+                echo "Fetching Jetty from ${jetty9URL}"
+                ${fetchCmd} ${downloadPath}/${jetty9File} "{$jetty9URL}"
+        fi
+        cd /opt
+        tar zxf ${downloadPath}/${jetty9File} >> ${statusFile} 2>&1
+        mkdir -p "/opt/${jetty9Path}/base/tmp"
+        for i in etc lib resources webapps logs start.ini; do cp -r /opt/${jetty9Path}/$i /opt/${jetty9Path}/base/; done
+        ln -s /opt/${jetty9Path} /opt/jetty
+        sed -i 's/\# JETTY_HOME/JETTY_HOME=\/opt\/jetty/g' /opt/jetty/bin/jetty.sh
+        sed -i 's/\# JETTY_USER/JETTY_USER=jetty/g' /opt/jetty/bin/jetty.sh
+        sed -i 's/\# JETTY_BASE/JETTY_BASE=\/opt\/jetty\/base/g' /opt/jetty/bin/jetty.sh
+        sed -i 's/TMPDIR:-\/tmp/TMPDIR:-\/opt\/jetty\/base\/tmp/g' /opt/jetty/bin/jetty.sh
+        cat ${Spath}/files/jetty.sh > /opt/jetty/bin/jetty.sh
+        useradd jetty
+        chown jetty:jetty /opt/jetty/ -R
+        ln -s /opt/jetty/bin/jetty.sh /etc/init.d/jetty
 
-         fi
 }
 
 
@@ -1340,17 +1309,6 @@ patchJettyConfigs ()
 
 {
         jettyBase="/opt/jetty/base"
-        if [ -d "/opt/${shibDir}/endorsed" ]; then
-                if [ ! -d "${jettyBase}/lib/ext/endorsed" ]; then
-                        mkdir ${jettyBase}/lib/ext/endorsed
-                fi
-                for i in `ls /opt/${shibDir}/endorsed/`; do
-                        if [ ! -s "${jettyBase}/lib/ext/endorsed/${i}" ]; then
-                                cp /opt/${shibDir}/endorsed/${i} ${jettyBase}/lib/ext/endorsed
-                        fi
-                done
-        fi
-
         if [ -z "`grep '7443' /etc/sysconfig/iptables`" ]; then
                 iptables -I INPUT -p tcp -m state --state NEW -m tcp --dport 443 -j ACCEPT
                 iptables -I INPUT -p tcp -m state --state NEW -m tcp --dport 7443 -j ACCEPT
@@ -1372,9 +1330,6 @@ patchJettyConfigs ()
 
         cat ${Spath}/xml/${my_ctl_federation}/jetty-shibboleth.xml | sed "s/jettySSLport/${jettySSLport}/" > $jettyBase/etc/jetty-shibboleth.xml
         echo "etc/jetty-shibboleth.xml" >> $jettyBase/start.ini
-
-        jettyUser=`grep "^jetty" /etc/passwd | cut -d: -f1`
-        chown -R ${jettyUser} /opt/shibboleth-idp/
 
         # need to set bash as the shell for the user to permit jetty to restart after reboot
         chsh -s /bin/bash ${jettyUser}
@@ -1433,9 +1388,9 @@ patchShibbolethConfigs ()
         fi
 
         if [ "${fticks}" != "n" ]; then
-                cp ${Spath}/xml/${my_ctl_federation}/fticks_logging.xml /opt/shibboleth-idp/conf/logging.xml
+                patch /opt/shibboleth-idp/conf/logback.xml -i ${Spath}/xml/CAF/fticks.diff >> ${statusFile} 2>&1
                 touch /opt/shibboleth-idp/conf/fticks-key.txt
-                chown ${jettyUser} /opt/shibboleth-idp/conf/fticks-key.txt
+                chown ${jettyUser}: /opt/shibboleth-idp/conf/fticks-key.txt
         fi
 
         if [ "${eptid}" != "n" ]; then
@@ -1530,32 +1485,27 @@ invokeShibbolethInstallProcessJetty9 ()
 
 	patchFirewall
 
-	installJetty
-	# moved from above jetty, to here just after.
+        if [ ! -s "/opt/jetty" ]; then
+		installJetty
+                configJettyServerXMLForPasswd
+        	patchJettyConfigs
+        	updateJettyAddingIDPWar
+        	enableJettyOnRestart
+	fi
 
 	# installEPEL Sept 26 - no longer needed since Maven is installed via zip
 
 	[[ "${upgrade}" -ne 1 ]] && fetchAndUnzipShibbolethIdP
 
-
-	installCasClientIfEnabled
-
-
-	installFticksIfEnabled
-
-
 	installEPTIDSupport
-
-	configJettyServerXMLForPasswd
 
 	configShibbolethXMLAttributeResolverForLDAP
 
-
 	runShibbolethInstaller
 
+	installCasClientIfEnabled
 
 	createCertificatePathAndHome
-
 
 	# Override per federation
 	installCertificates
@@ -1565,22 +1515,15 @@ invokeShibbolethInstallProcessJetty9 ()
 	# Override per federation
 	configContainerSSLServerKey
 
-	#Should be before runShibbolethInstaller
-	# patchShibbolethLDAPLoginConfigs
-
-	patchJettyConfigs
-
 	# Override per federation
 	configShibbolethFederationValidationKey
 
+        # cdinro test
+        patchShibbolethConfigs
+
 	updateMachineTime
 
-	updateJettyAddingIDPWar
-
 	restartJettyService
-
-	enableJettyOnRestart
-
 
 }
 

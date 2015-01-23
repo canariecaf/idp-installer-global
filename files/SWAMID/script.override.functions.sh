@@ -51,11 +51,11 @@ installCertificates () {
 	done
 	ccnt=1
 	while [ ${ccnt} -lt ${cnt} ]; do
-		md5finger=`keytool -printcert -file ${certpath}${ccnt}.root | grep MD5 | cut -d: -f2- | sed -re 's/\s+//g'`
-		test=`keytool -list -keystore ${javaCAcerts} -storepass changeit | grep ${md5finger}`
+		md5finger=`${keytool} -printcert -file ${certpath}${ccnt}.root | grep MD5 | cut -d: -f2- | sed -re 's/\s+//g'`
+		test=`${keytool} -list -keystore ${javaCAcerts} -storepass changeit | grep ${md5finger}`
 		subject=`openssl x509 -subject -noout -in ${certpath}${ccnt}.root | awk -F= '{print $NF}'`
 		if [ -z "${test}" ]; then
-			keytool -import -noprompt -trustcacerts -alias "${subject}" -file ${certpath}${ccnt}.root -keystore ${javaCAcerts} -storepass changeit >> ${statusFile} 2>&1
+			${keytool} -import -noprompt -trustcacerts -alias "${subject}" -file ${certpath}${ccnt}.root -keystore ${javaCAcerts} -storepass changeit >> ${statusFile} 2>&1
 		fi
 		files="`${Echo} ${files}` ${certpath}${ccnt}.root"
 		ccnt=`expr ${ccnt} + 1`
@@ -115,20 +115,6 @@ ${Echo} "Previous installation found, performing upgrade."
 
         if [ -d "/opt/cas-client-${casVer}" ]; then
                 installCasClientIfEnabled
-        fi
-
-        if [ -d "/opt/ndn-shib-fticks" ]; then
-                if [ -z "`ls /opt/ndn-shib-fticks/target/*.jar`" ]; then
-                        cd /opt/ndn-shib-fticks
-                        mvn >> ${statusFile} 2>&1
-                fi
-                cp /opt/ndn-shib-fticks/target/*.jar /opt/${shibDir}/lib
-        else
-                fticks=$(askYesNo "Send anonymous data" "Do you want to send anonymous usage data to ${my_ctl_federation}?\nThis is recommended")
-
-                if [ "${fticks}" != "n" ]; then
-                        installFticksIfEnabled
-                fi
         fi
 
         if [ -d "/opt/mysql-connector-java-${mysqlConVer}/" ]; then

@@ -308,62 +308,28 @@
     <!--      Data Connectors                       -->
     <!-- ========================================== -->
 
-    <!-- Example Static Connector -->
     <!--
-    <resolver:DataConnector id="staticAttributes" xsi:type="dc:Static">
-        <dc:Attribute id="eduPersonAffiliation">
-            <dc:Value>member</dc:Value>
-        </dc:Attribute>
-        <dc:Attribute id="eduPersonEntitlement">
-            <dc:Value>urn:example.org:entitlement:entitlement1</dc:Value>
-            <dc:Value>urn:mace:dir:entitlement:common-lib-terms</dc:Value>
-        </dc:Attribute>
-    </resolver:DataConnector>
+    Example LDAP Connector
+
+    The connectivity details can be specified in ldap.properties to
+    share them with your authentication settings if desired.
     -->
-
-    <!-- Example Relational Database Connector -->
-    <!--
-    <resolver:DataConnector id="mySIS" xsi:type="dc:RelationalDatabase">
-        <dc:ApplicationManagedConnection jdbcDriver="oracle.jdbc.driver.OracleDriver"
-                                         jdbcURL="jdbc:oracle:thin:@db.example.org:1521:SomeDB" 
-                                         jdbcUserName="myid" 
-                                         jdbcPassword="mypassword" />
-        <dc:QueryTemplate>
-            <![CDATA[
-                SELECT * FROM student WHERE gzbtpid = '$requestContext.principalName'
-            ]]>
-        </dc:QueryTemplate>
-
-        <dc:Column columnName="gzbtpid" attributeID="uid" />
-        <dc:Column columnName="fqlft" attributeID="gpa" type="Float" />
-    </resolver:DataConnector>
-     -->
-
-    <!-- Example LDAP Connector -->
-    <!--
     <resolver:DataConnector id="myLDAP" xsi:type="dc:LDAPDirectory"
-        ldapURL="ldap://ldap.example.org" 
-        baseDN="ou=people,dc=example,dc=org" 
-        principal="uid=myservice,ou=system"
-        principalCredential="myServicePassword">
+        ldapURL="%{idp.attribute.resolver.LDAP.ldapURL}"
+        baseDN="%{idp.attribute.resolver.LDAP.baseDN}"
+        principal="%{idp.attribute.resolver.LDAP.bindDN}"
+        principalCredential="%{idp.attribute.resolver.LDAP.bindDNCredential}"
+        useStartTLS="%{idp.attribute.resolver.LDAP.useStartTLS:true}">
         <dc:FilterTemplate>
             <![CDATA[
-                (sAMAccountName=$requestContext.principalName)
+                (uid=${requestContext.principalName})
             ]]>
         </dc:FilterTemplate>
+        <dc:StartTLSTrustCredential id="LDAPtoIdPCredential" xsi:type="sec:X509Filesystem">
+            <sec:Certificate>%{idp.attribute.resolver.LDAP.trustCertificates}</sec:Certificate>
+        </dc:StartTLSTrustCredential>
     </resolver:DataConnector>
-    -->
-	<resolver:DataConnector id="myLDAP" xsi:type="dc:LDAPDirectory"
-		ldapURL="LdApUrI"
-		baseDN="LdApBaSeDn"
-		principal="LdApCrEdS"
-		principalCredential="LdApPaSsWoRd">
-		<dc:FilterTemplate>
-		<![CDATA[
-			(uid=$requestContext.principalName)
-		]]>
-		</dc:FilterTemplate>
-	</resolver:DataConnector>
+
 
     <!-- Static data connector for organisation -->
     <resolver:DataConnector id="staticAttributes" xsi:type="dc:Static" xmlns="urn:mace:shibboleth:2.0:resolver:dc">

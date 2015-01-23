@@ -783,7 +783,35 @@ installer_section3_title:
            :
                   <input  style="width: 250px;" id="ldapbasedn" type="text" placeholder="e.g. cn=Users,dc=somedomain,dc=ca" onchange="updateCtx(this)" >
                   <BR>
-                  
+                  LDAP Server type
+<img id="ldap_typeToolTip" src="../img/icon_tooltip.gif" alt="ToolTip"
+          rel="tooltip" title="LDAP Server type"
+           />
+                  :
+                  <select id="ldap_type"  onchange="updateCtx(this)" >
+                    <option name="ldapAD" value="ad" selected>
+                      AD
+                    </option>
+                    <option name="ldapOther" value="other">
+                      Other
+                    </option>
+                  </select>
+                  <BR>
+
+                  LDAP search filter
+                  <img id="user_fieldToolTip" src="../img/icon_tooltip.gif" alt="ToolTip"
+          rel="tooltip" title="LDAP search filter"
+           />
+           :
+                  <input  style="width: 250px;" id="user_field" type="text" placeholder="e.g. samaccountname" onchange="updateCtx(this)" >
+                  <BR>
+                 
+                  LDAP released attributes
+                  <img id="ldap_attrToolTip" src="../img/icon_tooltip.gif" alt="ToolTip"
+          rel="tooltip" title="List of LDAP released attributes"
+           />
+           :                  <input  style="width: 250px;" id="ldap_attr" type="text" placeholder="e.g. cn,mail" onchange="updateCtx(this)" >
+                  <BR>
                   LDAP Subtree search?
 <img id="subsearchToolTip" src="../img/icon_tooltip.gif" alt="ToolTip" 
           rel="tooltip" title="Subtree search describes whether or not the entire tree is searched for a user or just that node and no further.  Subtree is recommended unless your directory design requires otherwise."
@@ -798,6 +826,21 @@ installer_section3_title:
                     </option>
                   </select>
                   <br>
+                  Ask for keystore passwords?
+<img id="passw_inputToolTip" src="../img/icon_tooltip.gif" alt="ToolTip"
+          rel="tooltip" title="Ask for IDP/HTTPS keystore passwords during installation. If set to No, passwords will be automatically generated."
+           />
+                  :
+                  <select id="passw_input"  onchange="updateCtx(this)" >
+                    <option name="kpwFalse" value="n" selected>
+                      No (recommended)
+                    </option>
+                    <option name="kpwTrue" value="y">
+                      No
+                    </option>
+                  </select>
+                  <br>
+
 		<div id="casurlRow">
                   CAS Server Login URL
                   <img id="casserverToolTip" src="../img/icon_tooltip.gif" alt="ToolTip" 

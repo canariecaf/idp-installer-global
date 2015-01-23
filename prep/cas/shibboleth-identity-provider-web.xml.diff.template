@@ -1,4 +1,5 @@
-21a22,97
+30a31,109
+> 
 > <!-- CAS Filter Configuration -->
 > <context-param>
 >   <param-name>serverName</param-name>
@@ -73,5 +74,7 @@
 > <filter-mapping>
 >   <filter-name>CAS Assertion Thread Local Filter</filter-name>
 >   <url-pattern>/Authn/RemoteUser</url-pattern>
-> </filter-mapping> 
+> </filter-mapping>
+> 
+> 
 > 
