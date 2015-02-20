@@ -75,10 +75,14 @@ deployEduroamCustomizations() {
 	
 	cp ${templatePath}/etc/nsswitch.conf.template /etc/nsswitch.conf
 
-	cp ${templatePath}${distEduroamPath}/sites-available/default.template ${distEduroamPath}/sites-available/default
-	cp ${templatePath}${distEduroamPath}/sites-available/eduroam.template ${distEduroamPath}/sites-available/eduroam
-	cp ${templatePath}${distEduroamPath}/sites-available/eduroam-inner-tunnel.template ${distEduroamPath}/sites-available/eduroam-inner-tunnel
-	cp ${templatePath}${distEduroamPath}/eap.conf.template ${distEduroamPath}/eap.conf
+	cp ${templatePathEduroamDist}/sites-available/default.template ${distEduroamPath}/sites-available/default
+	cp ${templatePathEduroamDist}/sites-available/eduroam.template ${distEduroamPath}/sites-available/eduroam
+	cp ${templatePathEduroamDist}/sites-available/eduroam-inner-tunnel.template ${distEduroamPath}/sites-available/eduroam-inner-tunnel
+	if [ ${dist} != "ubuntu" -a ${redhatDist} = "7"  ]; then
+		cp ${templatePathEduroamDist}/eap.conf.template ${distEduroamPath}/mods-available/eap
+	else
+		cp ${templatePathEduroamDist}/eap.conf.template ${distEduroamPath}/eap.conf
+	fi
 	chgrp ${distRadiusGroup} ${distEduroamPath}/sites-available/*
 	
 	# remove and redo symlink for freeRADIUS sites-available to sites-enabled
@@ -97,6 +101,7 @@ deployEduroamCustomizations() {
 	cat ${templatePath}/etc/krb5.conf.template \
 	|perl -npe "s#kRb5_LiBdEf_DeFaUlT_ReAlM#${krb5_libdef_default_realm}#" \
 	|perl -npe "s#kRb5_DoMaIn_ReAlM#${krb5_domain_realm}#" \
+	|perl -npe "s#Host_kRb5_rEaLmS_dEf_DoM#${smb_netbios_name}.${krb5_realms_def_dom}#" \
 	|perl -npe "s#kRb5_rEaLmS_dEf_DoM#${krb5_realms_def_dom}#" \
 	> /etc/krb5.conf
 
@@ -109,28 +114,29 @@ deployEduroamCustomizations() {
 	> /etc/samba/smb.conf
 
 # ${distEduroamPath}/modules
-        ln -s ${distEduroamPath}/mods-enabled ${distEduroamPath}/modules
-	cat ${templatePath}${distEduroamPath}/modules/mschap.template \
+	### /mods-enabled doesn't exist after installtion !?!?
+        #ln -s ${distEduroamPath}/mods-enabled ${distEduroamPath}/modules
+	cat ${templatePathEduroamDist}/modules/mschap.template \
 	|perl -npe "s#fReErAdIuS_rEaLm#${freeRADIUS_realm}#" \
 	|perl -npe "s#PXYCFG_rEaLm#${freeRADIUS_pxycfg_realm}#" \
-	 > ${distEduroamPath}/modules/mschap
-	chgrp ${distRadiusGroup} ${distEduroamPath}/modules/mschap
+	 > ${distEduroamPath}${distEduroamModules}/mschap
+	chgrp ${distRadiusGroup} ${distEduroamPath}${distEduroamModules}/mschap
 
 # ${distEduroamPath}/radiusd.conf
-	cat ${templatePath}${distEduroamPath}/radiusd.conf.template \
+	cat ${templatePathEduroamDist}/radiusd.conf.template \
 	|perl -npe "s#fReErAdIuS_rEaLm#${freeRADIUS_realm}#" \
 	> ${distEduroamPath}/radiusd.conf
 	chgrp ${distRadiusGroup} ${distEduroamPath}/radiusd.conf
 
 # ${distEduroamPath}/proxy.conf
-	cat ${templatePath}${distEduroamPath}/proxy.conf.template \
+	cat ${templatePathEduroamDist}/proxy.conf.template \
 	|perl -npe "s#fReErAdIuS_rEaLm#${freeRADIUS_realm}#" \
 	|perl -npe "s#PrOd_EduRoAm_PhRaSe#${freeRADIUS_cdn_prod_passphrase}#" \
 	> ${distEduroamPath}/proxy.conf
 	chgrp ${distRadiusGroup} ${distEduroamPath}/proxy.conf
 
 # ${distEduroamPath}/clients.conf 
-	cat ${templatePath}${distEduroamPath}/clients.conf.template \
+	cat ${templatePathEduroamDist}/clients.conf.template \
 	|perl -npe "s#PrOd_EduRoAm_PhRaSe#${freeRADIUS_cdn_prod_passphrase}#" \
 	|perl -npe "s#CLCFG_YaP1_iP#${freeRADIUS_clcfg_ap1_ip}#" \
 	|perl -npe "s#CLCFG_YaP1_sEcReT#${freeRADIUS_clcfg_ap1_secret}#" \
@@ -140,29 +146,32 @@ deployEduroamCustomizations() {
 	chgrp ${distRadiusGroup} ${distEduroamPath}/clients.conf
 
 # ${distEduroamPath}/certs/ca.cnf (note that there are a few things in the template too like setting it to 10yrs validity )
-	cat ${templatePath}${distEduroamPath}/certs/ca.cnf.template \
+mod_freeRADIUS_svr_email=`echo "${freeRADIUS_svr_email}" | sed 's/@/\\\\@/'`
+mod_freeRADIUS_ca_email=`echo "${freeRADIUS_ca_email}" | sed 's/@/\\\\@/'`
+
+	cat ${templatePathEduroamDist}/certs/ca.cnf.template \
 	|perl -npe "s#CRT_Ca_StAtE#${freeRADIUS_ca_state}#" \
 	|perl -npe "s#CRT_Ca_LoCaL#${freeRADIUS_ca_local}#" \
 	|perl -npe "s#CRT_Ca_OrGnAmE#${freeRADIUS_ca_org_name}#" \
-	|perl -npe "s#CRT_Ca_EmAiL#${freeRADIUS_ca_email}#" \
+	|perl -npe "s#CRT_Ca_EmAiL#${mod_freeRADIUS_ca_email}#" \
 	|perl -npe "s#CRT_Ca_CoMmOnNaMe#${freeRADIUS_ca_commonName}#" \
  	> ${distEduroamPath}/certs/ca.cnf
 	
 # ${distEduroamPath}/certs/server.cnf (note that there are a few things in the template too like setting it to 10yrs validity )
-	cat ${templatePath}${distEduroamPath}/certs/server.cnf.template \
+	cat ${templatePathEduroamDist}/certs/server.cnf.template \
 	|perl -npe "s#CRT_SvR_StAtE#${freeRADIUS_svr_state}#" \
 	|perl -npe "s#CRT_SvR_LoCaL#${freeRADIUS_svr_local}#" \
 	|perl -npe "s#CRT_SvR_OrGnAmE#${freeRADIUS_svr_org_name}#" \
-	|perl -npe "s#CRT_SvR_EmAiL#${freeRADIUS_svr_email}#" \
+	|perl -npe "s#CRT_SvR_EmAiL#${mod_freeRADIUS_svr_email}#" \
 	|perl -npe "s#CRT_SvR_CoMmOnNaMe#${freeRADIUS_svr_commonName}#" \
  	> ${distEduroamPath}/certs/server.cnf
 
 # ${distEduroamPath}/certs/client.cnf (note that there are a few things in the template too like setting it to 10yrs validity )
-	cat ${templatePath}${distEduroamPath}/certs/client.cnf.template \
+	cat ${templatePathEduroamDist}/certs/client.cnf.template \
 	|perl -npe "s#CRT_SvR_StAtE#${freeRADIUS_svr_state}#" \
 	|perl -npe "s#CRT_SvR_LoCaL#${freeRADIUS_svr_local}#" \
 	|perl -npe "s#CRT_SvR_OrGnAmE#${freeRADIUS_svr_org_name}#" \
-	|perl -npe "s#CRT_SvR_EmAiL#${freeRADIUS_svr_email}#" \
+	|perl -npe "s#CRT_SvR_EmAiL#'${mod_freeRADIUS_svr_email}'#" \
 	|perl -npe "s#CRT_SvR_CoMmOnNaMe#${freeRADIUS_svr_commonName}#" \
  	> ${distEduroamPath}/certs/client.cnf
 
@@ -172,16 +181,25 @@ deployEduroamCustomizations() {
 
 #	WARNING, see the ${distEduroamPath}/certs/README to 'clean' out certificate bits when you run
 #		this script respect the protections freeRADIUS put in place to not overwrite certs
-if [ "${dist}" != "ubuntu" ]; then
-	if [  -e "${distEduroamPath}/certs/server.crt" ] 
-	then
-		echo "bootstrap already run, skipping"
+if [ "${dist}" != "ubuntu"  ]; then
+	if [ "${redhatDist}" != "7" ]; then
+		if [  -e "${distEduroamPath}/certs/server.crt" ] 
+		then
+			echo "bootstrap already run, skipping"
+		else
+		
+			(cd ${distEduroamPath}/certs; ./bootstrap )
+		fi
 	else
-	
-		(cd ${distEduroamPath}/certs; ./bootstrap )
+		(cd ${distEduroamPath}/certs; make destroycerts; make clean; ./bootstrap )
+		chown root:radiusd ${distEduroamPath}/certs/*
 	fi
 else
 	dd if=/dev/urandom of=${distEduroamPath}/certs/random count=10
+	cp ${templatePathEduroamDist}/certs/bootstrap ${distEduroamPath}/certs/bootstrap
+	cp ${templatePathEduroamDist}/certs/xpextensions ${distEduroamPath}/certs/xpextensions
+	rm ${distEduroamPath}/certs/ca.pem; rm ${distEduroamPath}/certs/server.key; rm ${distEduroamPath}/certs/server.pem
+	(cd ${distEduroamPath}/certs; ./bootstrap )
 fi
 
 # ensure proper start/stop at run level 3 for the machine are in place for winbind,smb, and of course, radiusd
@@ -205,20 +223,22 @@ fi
 
 	fi
 # add radiusd/freerad to group wbpriv/winbindd_priv 
-if [ "${dist}" != "ubuntu" ]; then
-	echo "adding user radiusd to WINBIND/SAMBA privilege group wbpriv" >> ${statusFile} 2>&1 
-	usermod -a -G wbpriv radiusd
-else
-	echo "adding user freerad to WINBIND/SAMBA privilege group winbindd_priv" >> ${statusFile} 2>&1
-	usermod -a -G winbindd_priv freerad
-fi
+	if [ "${dist}" != "ubuntu" ]; then
+		echo "adding user radiusd to WINBIND/SAMBA privilege group wbpriv" >> ${statusFile} 2>&1 
+		usermod -a -G wbpriv radiusd
+	else
+		echo "adding user freerad to WINBIND/SAMBA privilege group winbindd_priv" >> ${statusFile} 2>&1
+		usermod -a -G winbindd_priv freerad
+	fi
 
 # tweak winbind to permit proper authentication traffic to proceed
 # without this, the NTLM call out for freeRADIUS will not be able to process requests
-if [ "${dist}" != "ubuntu" ]; then
-	chmod ugo+rx /var/run/winbindd
-else
-    	chown root:winbindd_priv /var/lib/samba/winbindd_privileged/				
+if [ "${redhatDist}" != "7" ]; then
+	if [ "${dist}" != "ubuntu" ]; then
+		chmod ugo+rx /var/run/winbindd
+	else
+	    	chown root:winbindd_priv /var/lib/samba/winbindd_privileged/				
+	fi
 fi
 
 # disable iptables on runlevels 3,4,5 for reboot and then disable it right now for good measure
@@ -228,8 +248,10 @@ fi
 #	${ckCmd} --level 4 iptables off
 #	${ckCmd} --level 5 iptables off
 #	/sbin/service iptables stop
-if [ "${dist}" != "ubuntu" ]; then
-	modifyIPTABLESForEduroam
+if [ "${redhatDist}" != "7" ]; then
+	if [ "${dist}" != "ubuntu" ]; then
+		modifyIPTABLESForEduroam
+	fi
 fi
 
 echo "Start Up processes completed" >> ${statusFile} 2>&1 
@@ -258,7 +280,7 @@ doInstallEduroam() {
 		deployEduroamCustomizations
 
 		if [ "${installer_interactive}" = "y" ]; then
-			${whiptailBin} --backtitle "${GUIbacktitle}" --title "eduroam customization completed"  --msgbox "Congratulations! eduroam customizations are now deployed!\n\nNext steps: Join this machine to the AD domain by typing \n\nnet join -U Administrator\n\n After, reboot the machine and it should be ready to answer requests. \n\nDecide on your commercial certificate: Self Signed certificates were generated by default. A CSR is located at ${distEduroamPath}/certs/server.csr (server.pem for Ubuntu) to request a commercial one. Remember the RADIUS extensions needed though!\n\nFor further configuration details, please see the documentation on disk or the web \n\n Choose OK to return to main menu." 22 75
+			${whiptailBin} --backtitle "${GUIbacktitle}" --title "eduroam customization completed"  --msgbox "Congratulations! eduroam customizations are now deployed!\n\nNext steps: Join this machine to the AD domain by typing \n\nnet [ads|rpc] join -U Administrator -S ad.server.domain.ca\n\n After, reboot the machine and it should be ready to answer requests. \n\nDecide on your commercial certificate: Self Signed certificates were generated by default. A CSR is located at ${distEduroamPath}/certs/server.csr to request a commercial one. Remember the RADIUS extensions needed though!\n\nFor further configuration details, please see the documentation on disk or the web \n\n Choose OK to return to main menu." 22 75
 		fi
 	else
 		if [ "${installer_interactive}" = "y" ]; then
@@ -305,7 +327,7 @@ displayMainMenu() {
 			#${whiptailBin} --backtitle "${GUIbacktitle}" --title "Review and Confirm Install Settings" --scrolltext --clear --defaultno --yesno --textbox ${freeradiusfile} 20 75 3>&1 1>&2 2>&3
 			#eduroamTask=$(${whiptailBin} --backtitle "${GUIbacktitle}" --title "Identity Server Main Menu" --cancel-button "exit, no changes" menu --clear  -- "${getStatusString}\nWhich do you want to do?" ${whipSize} 2 review "install Settings" refresh "relevant CentOS packages" install "full eduroam base server" 20 75 3>&1 1>&2 2>&3)
 
-			eduroamTask=$(${whiptailBin} --backtitle "${GUIbacktitle}" --title "Identity Server Main Menu" --cancel-button "exit" --menu --clear  -- "Which do you want to do?" ${whipSize} 5 refresh "Refresh relevant CentOS packages" review "Review install Settings" installEduroam "Install only the eduroam service" installFedSSO "Install only Federated SSO service"  installAll "Install eduroam and Federated SSO services" 3>&1 1>&2 2>&3)
+			eduroamTask=$(${whiptailBin} --backtitle "${GUIbacktitle}" --title "Identity Server Main Menu" --cancel-button "exit" --menu --clear  -- "Which do you want to do?" ${whipSize} 5 refresh "Refresh relevant CentOS packages" review "Review install Settings" installEduroam "Install only the eduroam service" installFedSSO "Install only Federated SSO service" rollBack "Restore previous Shibboleth V2 setup" installAll "Install eduroam and Federated SSO services" 3>&1 1>&2 2>&3)
 
 
 		else
@@ -383,7 +405,20 @@ displayMainMenu() {
                         else
                                 echo "Sorry, necessary configuration for shibboleth is incomplete, please redo config file"
                                 exit
-                fi
+	                fi
+
+        elif [ "${eduroamTask}" = "rollBack" ]  
+                then
+			if [ -d /opt/bak ]; then
+
+	                        service jetty stop
+        	                rm -rf /opt/shibboleth-idp
+                	        cp -ar /opt/bak /opt/shibboleth-idp
+                        	service tomcat6 start
+			else
+                                echo "Sorry, nothing to restore."
+                                exit
+			fi
 
 	elif [ "${eduroamTask}" = "installAll" ]
 	then

@@ -144,6 +144,7 @@ echo -e "${my_local_override_msg}" >> ${statusFile} 2>&1
 	chmod ugo+r /opt/shibboleth-idp/conf/attribute-filter.xml
 
 	${Echo} "patchShibbolethConfigs:Overlaying relying-filter.xml with CAF trusts"
+	dos2unix /opt/shibboleth-idp/conf/metadata-providers.xml
 	patch /opt/shibboleth-idp/conf/metadata-providers.xml -i ${Spath}/xml/${my_ctl_federation}/metadata-providers.xml.diff
 	cp ${Spath}/xml/${my_ctl_federation}/attribute-resolver.xml /opt/shibboleth-idp/conf/attribute-resolver.xml
 
@@ -163,19 +164,21 @@ echo -e "${my_local_override_msg}" >> ${statusFile} 2>&1
 	fi
 
 	if [ "${eptid}" != "n" ]; then
-		epass=`${passGenCmd}`
-# 		grant sql access for shibboleth
-		esalt=`openssl rand -base64 36 2>/dev/null`
-		cat ${Spath}/xml/${my_ctl_federation}/eptid.sql.template | sed -re "s#SqLpAsSwOrD#${epass}#" > ${Spath}/xml/${my_ctl_federation}/eptid.sql
-		files="`${Echo} ${files}` ${Spath}/xml/${my_ctl_federation}/eptid.sql"
+                if [ -z "${epass}" ]; then
+                        epass=`${passGenCmd}`
+                        grant sql access for shibboleth
+                        esalt=`openssl rand -base64 36 2>/dev/null`
+                        cat ${Spath}/xml/${my_ctl_federation}/eptid.sql.template | sed -re "s#SqLpAsSwOrD#${epass}#" > ${Spath}/xml/${my_ctl_federation}/eptid.sql
+                        files="`${Echo} ${files}` ${Spath}/xml/${my_ctl_federation}/eptid.sql"
 
-		${Echo} "Create MySQL database for Shibboleth ePTiD and shibboleth user for database connection."
-		mysql -uroot -p"${mysqlPass}" < ${Spath}/xml/${my_ctl_federation}/eptid.sql
-		retval=$?
-		if [ "${retval}" -ne 0 ]; then
-			${Echo} "Failed to create EPTID database, take a look in the file '${Spath}/xml/${my_ctl_federation}/eptid.sql.template' and corect the issue." >> ${messages}
-			${Echo} "Password for the database user can be found in: /opt/shibboleth-idp/conf/attribute-resolver.xml" >> ${messages}
-		fi
+                        ${Echo} "Create MySQL database and shibboleth user."
+                        mysql -uroot -p"${mysqlPass}" < ${Spath}/xml/${my_ctl_federation}/eptid.sql
+                        retval=$?
+                        if [ "${retval}" -ne 0 ]; then
+                                ${Echo} "Failed to create EPTID database, take a look in the file '${Spath}/xml/${my_ctl_federation}/eptid.sql.template' and corect the issue." >> ${messages}
+                                ${Echo} "Password for the database user can be found in: /opt/shibboleth-idp/conf/attribute-resolver.xml" >> ${messages}
+                        fi
+                fi
 			
 		cat ${Spath}/xml/${my_ctl_federation}/eptid-AR.diff.template \
 			| sed -re "s#SqLpAsSwOrD#${epass}#;s#Large_Random_Salt_Value#${esalt}#" \
@@ -236,8 +239,15 @@ ${Echo} "Previous installation found, performing upgrade."
         tar xzf ${downloadPath}/${shibDir}-${shibVer}.tar.gz -C /opt
         chmod -R 755 /opt/${shibDir}-${shibVer}
 
-        cp /opt/shibboleth-idp/metadata/idp-metadata.xml /opt/${shibDir}/src/main/webapp/metadata.xml
-        tar zcfP ${bupFile} --remove-files /opt/shibboleth-idp
+        # Backup previous V2 environment
+        #tar zcfP ${bupFile} --remove-files /opt/shibboleth-idp
+        service tomcat6 stop
+
+        if [ ! -d /opt/bak ]; then
+                cp -ar /opt/shibboleth-idp /opt/bak 2>/dev/null
+        fi
+
+        rm -rf /opt/shibboleth-idp
 
         unlink /opt/${shibDir}
         ln -s /opt/${shibDir}-${shibVer} /opt/${shibDir}
@@ -246,13 +256,9 @@ ${Echo} "Previous installation found, performing upgrade."
                 installCasClientIfEnabled
         fi
 
-        if [ -d "/opt/mysql-connector-java-${mysqlConVer}/" ]; then
-                cp /opt/mysql-connector-java-${mysqlConVer}/mysql-connector-java-${mysqlConVer}-bin.jar /opt/${shibDir}/lib/
-        fi
-
         setJavaHome
 else
-        ${Echo} "\nThis is a fresh Shibboleth Install"
+        ${Echo} "This is a fresh Shibboleth Install"
 
 
 fi

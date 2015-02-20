@@ -75,6 +75,27 @@
 #		md5 {
 #		}
 
+       		#
+        	# EAP-pwd -- secure password-based authentication
+        	#
+#       	pwd {
+#       	        group = 19
+
+        	        #
+#       	        server_id = theserver@example.com
+
+        	        #  This has the same meaning as for TLS.
+#       	        fragment_size = 1020
+
+        	        # The virtual server which determines the
+        	        # "known good" password for the user.
+        	        # Note that unlike TLS, only the "authorize"
+        	        # section is processed.  EAP-PWD requests can be
+        	        # distinguished by having a User-Name, but
+        	        # no User-Password, CHAP-Password, EAP-Message, etc.
+#       	        virtual_server = "inner-tunnel"
+#       	}
+
 		# Cisco LEAP
 		#
 		#  We do not recommend using LEAP in new deployments.  See:
@@ -148,7 +169,9 @@
 		#  e.g. using a Verisign cert as a "known CA" means that
 		#  ANYONE who has a certificate signed by them can
 		#  authenticate via EAP-TLS!  This is likely not what you want.
-		tls {
+		
+		#tls {- old section name was tls 
+		tls-config tls-common {
 			#
 			#  These is used to simplify later configurations.
 			#
@@ -185,7 +208,7 @@
 			#  not use client certificates, and you do not want
 			#  to permit EAP-TLS authentication, then delete
 			#  this configuration item.
-			CA_file = ${cadir}/ca.pem
+			ca_file = ${cadir}/ca.pem
 
 			#
 			#  For DH cipher suites to work, you have to
@@ -225,7 +248,7 @@
 			#  3) uncomment the line below.
 			#  5) Restart radiusd
 		#	check_crl = yes
-			CA_path = ${cadir}
+			ca_path = ${cadir}
 
 		       #
 		       #  If check_cert_issuer is set, the value will
@@ -432,6 +455,19 @@
 			}
 		}
 
+        	tls {
+                	# Point to the common TLS configuration
+                	tls = tls-common
+
+                	#
+                	# As part of checking a client certificate, the EAP-TLS
+                	# sets some attributes such as TLS-Client-Cert-CN. This
+                	# virtual server has access to these attributes, and can
+                	# be used to accept or reject the request.
+                	#
+        		#       virtual_server = check-eap-tls
+        	}
+
 		#  The TTLS module implements the EAP-TTLS protocol,
 		#  which can be described as EAP inside of Diameter,
 		#  inside of TLS, inside of EAP, inside of RADIUS...
@@ -573,6 +609,7 @@
 			#  PEAP tunnel, we recommend using MS-CHAPv2,
 			#  as that is the default type supported by
 			#  Windows clients.
+			tls = tls-common
 			default_eap_type = mschapv2
 
 			#  the PEAP module also has these configuration

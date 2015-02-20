@@ -157,6 +157,7 @@ guessLinuxDist() {
 
 setDistCommands() {
         if [ ${dist} = "ubuntu" ]; then
+		redhatDist="none"
 		debianDist=`cat /etc/issue.net | awk -F' ' '{print $2}'  | cut -d. -f1`
                 distCmdU=${ubuntuCmdU}
                 distCmdUa=${ubuntuCmdUa}
@@ -171,6 +172,8 @@ setDistCommands() {
                 distCmdEduroam=${ubuntuCmdEduroam}
 		distEduroamPath=${ubuntuEduroamPath}
 		distRadiusGroup=${ubuntuRadiusGroup}
+		templatePathEduroamDist=${templatePathEduroamUbuntu}
+		distEduroamModules=${UbuntuEduroamModules}
         elif [ ${dist} = "centos" -o "${dist}" = "redhat" ]; then
                 if [ ${dist} = "centos" ]; then
 			redhatDist=`rpm -q centos-release | awk -F'-' '{print $3}'`
@@ -187,6 +190,13 @@ setDistCommands() {
                         distCmdEduroam=${centosCmdEduroam}
 			distEduroamPath=${centosEduroamPath}
 			distRadiusGroup=${centosRadiusGroup}
+			if [ ${redhatDist} = "7"  ]; then
+				templatePathEduroamDist=${templatePathEduroamCentOS7}
+				distEduroamModules=${CentOS7EduroamModules}
+			else
+				templatePathEduroamDist=${templatePathEduroamCentOS}
+				distEduroamModules=${CentOSEduroamModules}
+			fi
                 else
                         redhatDist=`cat /etc/redhat-release | cut -d' ' -f7 | cut -c1`
                         distCmdU=${redhatCmdU}
@@ -200,6 +210,8 @@ setDistCommands() {
                         distCmdEduroam=${redhatCmdEduroam}
 			distEduroamPath=${redhatEduroamPath}
 			distRadiusGroup=${redhatRadiusGroup}
+			templatePathEduroamDist=${templatePathEduroamRedhat}
+			distEduroamModules=${RedhatEduroamModules}
                 fi
                 tomcatSettingsFile=${tomcatSettingsFileC}
 
@@ -387,16 +399,22 @@ ldapwhoami -vvv -H ldaps://${ldapserver} -D "${ldapbinddn}" -x -w "${ldappass}" 
 # ntp server check
 ##############################
 elo "${Echo} Validating ntpserver (${ntpserver}) reachability..."
-${Echo} "ntpdate ${ntpserver}" >> ${statusFile}
-ntpcheck=$(ntpdate ${ntpserver} 2>&1 | tee -a ${statusFile} | awk -F":" '{print $4}' | awk '{print $1 $2}')
-
-if [ $ntpcheck == "noserver"  ]
-        then
-                elo "${Echo} ntpserver - - - - failed"
-                NTPSERVER="failed"
-        else
-                elo "${Echo} ntpserver - - - - ok"
-                NTPSERVER="ok"
+${Echo} "ntpdate ${ntpserver}" &> >(tee -a ${statusFile})
+ntpcheck=$(ntpdate ${ntpserver} 2>&1 | head -n1 | awk '{print $1 $2}')
+if [ $ntpcheck == "Errorresolving" ]
+	then
+		elo "${Echo} ntpserver - - - - failed"
+		NTPSERVER="failed"
+	else
+	ntpcheck=$(ntpdate ${ntpserver} 2>&1 | head -n1 | awk -F":" '{print $4}' | awk '{print $1 $2}')
+	if [ $ntpcheck == "adjusttime"  ]
+        	then
+			elo "${Echo} ntpserver - - - - ok"
+                        NTPSERVER="ok"
+        	else
+			elo "${Echo} ntpserver - - - - failed"
+                        NTPSERVER="failed"
+	fi
 fi
 ###############################
 # summary results
@@ -467,3 +485,51 @@ ${Echo} "Starting installation script..."
 
 }
 
+
+checkEptidDb() {
+    if [ "${eptid}" = "n" ]; then
+	return 0
+    fi
+
+    ${Echo} "Checking for existing EPTID database..."
+    if [ ! -f /etc/init.d/mysqld ]; then
+	${Echo} "MySQL not installed, skipping"
+	return 0
+    fi
+
+    if [ ! -f /opt/shibboleth-idp/conf/attribute-resolver.xml ]; then
+	mysql --no-defaults -uroot --password="" -e "" > /dev/null 2>&1
+
+	if [ $? -ne 0 ]; then
+	    ${Echo} "ERROR: Existing EPTID configuration not found but MySQL root password is set. Please remove the MySQL root password then try again."
+	    exit 1
+	fi
+
+	return 0
+    fi
+
+    ${Echo} "/opt/shibboleth/conf/attribute-resolver exists, installer will use existing salt and password"
+
+    epass=$(grep jdbcPassword /opt/shibboleth-idp/conf/attribute-resolver.xml | grep -v 'jdbcPassword="mypassword"' | awk -F '"' '{print $2}')
+    esalt=$(grep salt /opt/shibboleth-idp/conf/attribute-resolver.xml | grep -v 'salt="your random string here"' | awk -F '"' '{print $2}')
+
+    if [ -z "${epass}" ]; then
+	${Echo} "ERROR: Could not retrieve MySQL password from attribute-resolver.xml"
+	exit 1
+    fi
+    
+    if [ -z "${esalt}" ]; then
+	${Echo} "ERROR: Could not retrieve salt from attribute-resolver.xml"
+	exit 1
+    fi
+
+    ${Echo} "Testing existing MySQL password..."
+    mysql --no-defaults -ushibboleth --password="${epass}" -e "" > /dev/null 2>&1
+
+    if [ $? -ne 0 ]; then
+        ${Echo} "ERROR: Failed to connect to MySQL using user 'shibboleth' and password from /opt/shibboleth-idp/conf/attribute-resolver.xml. Please correct the password in attribute-resolver.xml or remove the file entirely if the EPTID table needs to be created."
+        exit 1
+    fi
+
+    ${Echo} "MySQL password works!"
+}

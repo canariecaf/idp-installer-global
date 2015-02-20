@@ -86,6 +86,8 @@
     </afp:AttributeRule>
 </afp:AttributeFilterPolicy>
 
+<!-- EPTID FILTER PLACEHOLDER -->
+
 <!-- Test attribute release -->
 <afp:AttributeFilterPolicy id="MyCustomFilter"> <afp:PolicyRequirementRule xsi:type="basic:ANY"/>
 <afp:AttributeRule attributeID="email"> <afp:PermitValueRule xsi:type="basic:ANY"/>
