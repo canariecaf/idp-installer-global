@@ -8,10 +8,11 @@
         ldapURL="%{idp.attribute.resolver.LDAP.ldapURL}"
         baseDN="%{idp.attribute.resolver.LDAP.baseDN}"
         principal="%{idp.attribute.resolver.LDAP.bindDN}"
-        principalCredential="%{idp.attribute.resolver.LDAP.bindDNCredential}">
+        principalCredential="%{idp.attribute.resolver.LDAP.bindDNCredential}"
+        useStartTLS="%{idp.attribute.resolver.LDAP.useStartTLS:true}">
         <dc:FilterTemplate>
             <![CDATA[
-                (sAMAccountName=${requestContext.principalName})
+                (AtTrFiLtEr=${requestContext.principalName})
             ]]>
         </dc:FilterTemplate>
         <dc:StartTLSTrustCredential id="LDAPtoIdPCredential" xsi:type="sec:X509Filesystem">

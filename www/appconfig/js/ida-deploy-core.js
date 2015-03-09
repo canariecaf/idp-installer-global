@@ -239,10 +239,6 @@ var requiredFieldKeysShibboleth = {
       "idpurl": 0,
       "ntpserver": 0,
       "ldapserver": 0,
-      "ldapurl": 0,
-      "ldapdn": 0,
-      "ldapSSL": 0,
-      "ldapStartTLS": 0,
       "ldapbinddn": 0,
       "ldappass": 0,
       "ldapbasedn": 0,
@@ -580,15 +576,11 @@ output += "type=\'"+ $("#type").val()+ "\'\n";
 output += "idpurl=\'"+ $("#idpurl").val()+ "\'\n";
 output += "ntpserver=\'"+ $("#ntpserver").val()+ "\'\n";
 output += "ldapserver=\'"+ $("#ldapserver").val()+ "\'\n";
-output += "ldapurl=\'"+ $("#ldapurl").val()+ "\'\n";
-output += "ldapdn=\'"+ $("#ldapdn").val()+ "\'\n";
 output += "ldapbinddn=\'"+ $("#ldapbinddn").val()+ "\'\n";
 output += "ldappass=\'"+ $("#ldappass").val()+ "\'\n";
 output += "ldapbasedn=\'"+ $("#ldapbasedn").val()+ "\'\n";
 output += "subsearch=\'"+ $("#subsearch").val()+ "\'\n";
 output += "ldap_type=\'"+ $("#ldap_type").val()+ "\'\n";
-output += "ldapSSL=\'"+ $("#ldapSSL").val()+ "\'\n";
-output += "ldapStartTLS=\'"+ $("#ldapStartTLS").val()+ "\'\n";
 output += "attr_filter=\'"+ $("#attr_filter").val()+ "\'\n";
 output += "user_field=\'"+ $("#user_field").val()+ "\'\n";
 output += "ldap_attr=\'"+ $("#ldap_attr").val()+ "\'\n";
