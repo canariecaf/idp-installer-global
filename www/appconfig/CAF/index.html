@@ -763,22 +763,6 @@ installer_section3_title:
                   :
                   <input  style="width: 250px;" id="ldapserver" type="text" placeholder="" onchange="if(this.value.indexOf(':')>-1){alert(errorNotValidHostname);}else{update();}updateCtx(this)" >
                   <BR>
-                  LDAP URL
-<img id="ldapurlToolTip" src="../img/icon_tooltip.gif" alt="ToolTip"
-          rel="tooltip" title="Examples: ldap://myldapserver.com ldaps://myldapserver.com ldap://myldapserver.com:389/ou=People"
-           />
-                  :
-                  <input  style="width: 250px;" id="ldapurl" type="text" placeholder="" onchange="updateCtx(this)" >
-                  <BR>
-                  LDAP DN
-<img id="ldapdnToolTip" src="../img/icon_tooltip.gif" alt="ToolTip"
-          rel="tooltip" title="Examples: caftest.canarie.ca"
-           />
-                  :
-                  <input  style="width: 250px;" id="ldapdn" type="text" placeholder="" onchange="updateCtx(this)" >
-                  <BR>
-
-
                   LDAP Bind DN
 <img id="ldapserverToolTip" src="../img/icon_tooltip.gif" alt="ToolTip" 
           rel="tooltip" title="The Bind DN format is the DN of the LDAP identity that FedSSO will sign in as. An example one is: CN=ShibBindUser,CN=Users, DC=somedomain,DC=ca.  Note the AD 'Users' container is a CN NOT OU unless you have customized your AD tree."
@@ -814,38 +798,6 @@ installer_section3_title:
                   </select>
                   <BR>
 
-                  LDAP SSL
-<img id="sslToolTip" src="../img/icon_tooltip.gif" alt="ToolTip"
-          rel="tooltip" title="This LDAP server uses SSL?"
-           />
-
-                  :
-                 <select id="ldapSSL"  onchange="updateCtx(this)" >
-                    <option name="ssl_no" value="false" selected>
-                      No
-                    </option>
-                    <option name="ssl_yes" value="true">
-                      Yes
-                    </option>
-                 </select>
-
-                  <BR>
-                  LDAP TLS
-<img id="tlsToolTip" src="../img/icon_tooltip.gif" alt="ToolTip"          
-          rel="tooltip" title="This LDAP server uses TLS?"
-           />
-
-                  :
-                 <select id="ldapStartTLS"  onchange="updateCtx(this)" >
-                    <option name="tls_no" value="false">
-                      No
-                    </option>
-                    <option name="tls_yes" value="true" selected>
-                      Yes
-                    </option>
-                 </select>
-
-		 <BR>
                   LDAP attribute filter
                   <img id="attr_filterToolTip" src="../img/icon_tooltip.gif" alt="ToolTip"
           rel="tooltip" title="LDAP attribute filter. Used for LDAP authentication"
