@@ -592,14 +592,13 @@ if [ "${type}" = "cas" ]; then
 	fi
 
 	cp /opt/cas-client-${casVer}/modules/cas-client-core-${casVer}.jar /opt/shibboleth-idp/edit-webapp/WEB-INF/lib/
+	cp ${Spath}/downloads/shib-cas-authenticator-3.0.0.jar /opt/shibboleth-idp/edit-webapp/WEB-INF/lib/
 	cp /opt/shibboleth-idp/webapp/WEB-INF/web.xml /opt/shibboleth-idp/edit-webapp/WEB-INF/
-	
-	cat ${Spath}/${prep}/${shibDir}-web.xml.diff.template \
-		| sed -re "s#IdPuRl#${idpurl}#;s#CaSuRl#${caslogurl}#;s#CaS2uRl#${casurl}#" \
-		> ${Spath}/${prep}/${shibDir}-web.xml.diff
-	files="`${Echo} ${files}` ${Spath}/${prep}/${shibDir}-web.xml.diff"
+	mkdir -p /opt/shibboleth-idp/flows/authn/Shibcas
+	cp ${Spath}/${prep}/shibcas-authn-beans.xml ${Spath}/${prep}/shibcas-authn-flow.xml /opt/shibboleth-idp/flows/authn/Shibcas
 
 	patch /opt/shibboleth-idp/edit-webapp/WEB-INF/web.xml -i ${Spath}/${prep}/${shibDir}-web.xml.diff >> ${statusFile} 2>&1
+	patch /opt/shibboleth-idp/conf/authn/general-authn.xml -i ${Spath}/${prep}/${shibDir}-general-authn.xml.diff >> ${statusFile} 2>&1
 
 	/opt/shibboleth-idp/bin/build.sh -Didp.target.dir=/opt/shibboleth-idp
 
@@ -1001,7 +1000,7 @@ runShibbolethInstaller ()
 	if [ "${type}" = "ldap" ]; then
 
 	       cat << EOM > idp.properties.tmp
-idp.scope 			    =${idpScope} 
+idp.scope               =${idpScope}
 idp.entityID            = https://${certCN}/idp/shibboleth
 idp.sealer.storePassword= ${pass}
 idp.sealer.keyPassword  = ${pass}
@@ -1011,11 +1010,14 @@ EOM
 	elif [ "${type}" = "cas" ]; then
 
                 cat << EOM > idp.properties.tmp
-idp.scope 			    =${idpScope} 
-idp.entityID            = https://${certCN}/idp/shibboleth
-idp.sealer.storePassword= ${pass}
-idp.sealer.keyPassword  = ${pass}
-idp.authn.flows         = RemoteUser
+idp.scope                  = ${idpScope}
+idp.entityID               = https://${certCN}/idp/shibboleth
+idp.sealer.storePassword   = ${pass}
+idp.sealer.keyPassword     = ${pass}
+idp.authn.flows            = Shibcas
+shibcas.casServerUrlPrefix = ${casurl}
+shibcas.casServerLoginUrl  = \${shibcas.casServerUrlPrefix}/login
+shibcas.serverName         = https://${certCN}
 EOM
 
 	fi
@@ -1554,19 +1556,19 @@ patchShibbolethConfigs ()
         if [ "${eptid}" != "n" ]; then
                 if [ -z "${epass}" ]; then
                         epass=`${passGenCmd}`
-                        # grant sql access for shibboleth
-                        esalt=`openssl rand -base64 36 2>/dev/null`
-                        cat ${Spath}/xml/${my_ctl_federation}/eptid.sql.template | sed -re "s#SqLpAsSwOrD#${epass}#" > ${Spath}/xml/${my_ctl_federation}/eptid.sql
-                        files="`${Echo} ${files}` ${Spath}/xml/${my_ctl_federation}/eptid.sql"
-
-                        ${Echo} "Create MySQL database and shibboleth user."
-                        mysql -uroot -p"${mysqlPass}" < ${Spath}/xml/${my_ctl_federation}/eptid.sql
-                        retval=$?
-                        if [ "${retval}" -ne 0 ]; then
-                                ${Echo} "Failed to create EPTID database, take a look in the file '${Spath}/xml/${my_ctl_federation}/eptid.sql.template' and corect the issue." >> ${messages}
-                                ${Echo} "Password for the database user can be found in: /opt/shibboleth-idp/conf/attribute-resolver.xml" >> ${messages}
-                        fi
                 fi
+		# grant sql access for shibboleth
+		esalt=`openssl rand -base64 36 2>/dev/null`
+		cat ${Spath}/xml/${my_ctl_federation}/eptid.sql.template | sed -re "s#SqLpAsSwOrD#${epass}#" > ${Spath}/xml/${my_ctl_federation}/eptid.sql
+		files="`${Echo} ${files}` ${Spath}/xml/${my_ctl_federation}/eptid.sql"
+
+		${Echo} "Create MySQL database and shibboleth user."
+		mysql -uroot -p"${mysqlPass}" < ${Spath}/xml/${my_ctl_federation}/eptid.sql
+		retval=$?
+		if [ "${retval}" -ne 0 ]; then
+			${Echo} "Failed to create EPTID database, take a look in the file '${Spath}/xml/${my_ctl_federation}/eptid.sql.template' and corect the issue." >> ${messages}
+			${Echo} "Password for the database user can be found in: /opt/shibboleth-idp/conf/attribute-resolver.xml" >> ${messages}
+		fi
 
                 cat ${Spath}/xml/${my_ctl_federation}/eptid.add.attrCon.template \
                         | sed -re "s#SqLpAsSwOrD#${epass}#;s#Large_Random_Salt_Value#${esalt}#" \
@@ -1604,6 +1606,74 @@ performPostUpgradeSteps ()
 
 }
 
+checkAndLoadBackupFile ()
+{
+	backFile=`ls ${Spath} | egrep "^idp-export-.+tar.gz"`
+	if [ "x${backFile}" != "x" ]; then
+		${Echo} "Found backup, extracting and load settings" >> ${statusFile} 2>&1
+		mkdir ${Spath}/extract 2>/dev/null
+		cd ${Spath}/extract
+		tar zxf ${Spath}/${backFile}
+		. settingsToImport.sh
+		cd ${Spath}
+	else
+		${Echo} "No backup found." >> ${statusFile} 2>&1
+	fi
+}
+
+
+loadDatabaseDump ()
+{
+	if [ -s "${Spath}/extract/sql.dump" ]; then
+		if [ "${ehost}" = "localhost" ]; then
+			if [ "${etype}" = "mysql" ]; then
+				mysql -uroot -p"${mysqlPass}" -D ${eDB} < ${Spath}/extract/sql.dump
+			fi
+		else
+			${Echo} "Database not on localhost, skipping database import." >> ${messages}
+		fi
+	fi
+}
+
+
+overwriteConfigFiles ()
+{
+	if [ -f "${Spath}/extract/opt/shibboleth-idp/conf/fticks-key.txt" ]; then
+		mv ${Spath}/extract/opt/shibboleth-idp/conf/fticks-key.txt /opt/shibboleth-idp/conf/fticks-key.txt
+		chown jetty /opt/shibboleth-idp/conf/fticks-key.txt
+	fi
+# 	if [ -d "${Spath}/extract/opt/shibboleth-idp/conf" -a "x`ls ${Spath}/extract/opt/shibboleth-idp/conf`" != "x" ]; then
+# 		for i in `ls ${Spath}/extract/opt/shibboleth-idp/conf/`; do
+# 			mv ${Spath}/extract/opt/shibboleth-idp/conf/$i /opt/shibboleth-idp/conf
+# 			chown jetty /opt/shibboleth-idp/conf/$i
+# 		done
+# 	fi
+	if [ -d "${Spath}/extract/opt/shibboleth-idp/metadata" -a "x`ls ${Spath}/extract/opt/shibboleth-idp/metadata 2>/dev/null`" != "x" ]; then
+		for i in `ls ${Spath}/extract/opt/shibboleth-idp/metadata/`; do
+			mv ${Spath}/extract/opt/shibboleth-idp/metadata/$i /opt/shibboleth-idp/metadata
+			chown jetty /opt/shibboleth-idp/metadata/$i
+		done
+	fi
+}
+
+
+overwriteKeystoreFiles ()
+{
+	if [ -d "${Spath}/extract/opt/shibboleth-idp/credentials" -a "x`ls ${Spath}/extract/opt/shibboleth-idp/credentials 2>/dev/null`" != "x" ]; then
+		mv ${Spath}/extract/opt/shibboleth-idp/credentials/* /opt/shibboleth-idp/credentials
+		chown jetty /opt/shibboleth-idp/credentials/*
+	fi
+	if [ -f "${Spath}/extract/${httpsP12}" ]; then
+		mv ${Spath}/extract/${httpsP12} ${httpsP12}
+		chown jetty ${httpsP12}
+	fi
+	if [ "x${keyFile}" != "x" -a -f "${Spath}/extract/${keyFile}" ]; then
+		mv ${Spath}/extract/${keyFile} ${keyFile}
+		chown jetty ${keyFile}
+	fi
+}
+
+
 invokeShibbolethInstallProcessJetty9 ()
 {
 
@@ -1618,6 +1688,9 @@ invokeShibbolethInstallProcessJetty9 ()
 
 	# Override per federation
 	performStepsForShibbolethUpgradeIfRequired
+
+# 	check for backup file and use it if available
+	checkAndLoadBackupFile
 
 	if [ "${installer_interactive}" = "y" ]
 	then
@@ -1678,6 +1751,13 @@ invokeShibbolethInstallProcessJetty9 ()
 	updateMachineTime
 
 	updateMachineHealthCrontab
+
+# 	install files from backup
+	overwriteConfigFiles
+	overwriteKeystoreFiles
+
+# 	load the database dump if available
+	loadDatabaseDump
 
 	restartJettyService
 
