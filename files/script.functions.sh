@@ -490,11 +490,11 @@ installEPTIDSupport ()
                         test=`dpkg -s mysql-server > /dev/null 2>&1`
                         isInstalled=$?
 
-                elif [ "$dist" == "centos" -a "$redhatDist" == "6" ]; then
+                elif [ "$dist" == "centos" -o "$dist" == "redhat" ] && [ "$redhatDist" == "6" ]; then
                         [ -f /etc/init.d/mysqld ]
                         isInstalled=$?
 
-                elif [ "$dist" == "centos" -a "$redhatDist" == "7" ]; then
+                elif [ "$dist" == "centos" -o "$dist" == "redhat" ] && [ "$redhatDist" == "7" ]; then
                         #Add Oracle repos
                         if [ ! -z "`rpm -q mysql-community-release | grep ' is not installed'`" ]; then
 
