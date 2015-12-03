@@ -17,10 +17,15 @@ idpInstallerBase="/opt/idp-installer"
 shibVer="3.2.0"
 casVer="3.3.3"
 mysqlConVer="5.1.35"
-javaVer="1.8.0_25"
 jettyVer="9.2.14.v20151106"
 # uncomment if you want an older jetty version: jettyVer="9.2.13.v20150730"
 
+javaBuildName="8u65-b17"
+javaName="8u65"
+javaMajorVersion="8"
+javaVer="1.8.0_65"
+jcePolicySrc="jce_policy-8.zip"
+JCEUnlimitedResponse="2147483647"
 
 # This URL determines which base to derive 'latest' from
 # --> this is the very very latest: jettyBaseURL="http://download.eclipse.org/jetty/stable-9/dist/"
