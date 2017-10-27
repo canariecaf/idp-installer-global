@@ -1338,13 +1338,17 @@ enableECP ()
 		
 		ldapUserFilter="${attr_filter}={user}"
 
-		cat ${Spath}/${prep}/jaas.config.template \
+		cat ${prepPath}/ldap/jaas.config.template \
 			| sed -re "s#LdApUrI#${ldapurl}#;s/LdApBaSeDn/${ldapbasedn}/;s/SuBsEaRcH/${subsearch}/;s/LdApCrEdS/${ldapbinddn}/;s/LdApPaSsWoRd/${ldappass}/;s/LdApUsErFiLtEr/${ldapUserFilter}/;s/LdApSsL/${ldapSSL}/;s/LdApTlS/${ldapStartTLS}/" \
 			> ${jaasConfigFile}
 
 		${Echo} "ECP Step: ensure jetty:jetty owns idp.home/conf/authn/jaas.config"
 		chown jetty:jetty ${jaasConfigFile}
 
+		${Echo} "ECP Step: copy jaas.ini.template into jetty-base/start.d/jaas.ini"
+		
+		cp ${prepPath}/jetty/jetty-base/start.d/jaas.ini.template /opt/jetty/jetty-base/start.d/jaas.ini
+		chown jetty:jetty /opt/jetty/jetty-base/start.d/jaas.ini
 
 		enableECPUpdateIdPWebXML
 
@@ -1712,18 +1716,64 @@ jettySetupManageCiphers() {
 
 jettySetupPrepareBase()
 {
-	   ${Echo} "Preparing jetty-base from: ${jettyBasePath} to /opt/jetty/"
+	# Following: https://wiki.shibboleth.net/confluence/display/IDP30/Jetty93#Jetty93-JETTY_BASELayout
 
-    	cp -r ${jettyBasePath} /opt/jetty/
+	#IdP-installer tree starts here:
+	local prepJettybasePath="${prepPath}/jetty/jetty-base"
+	# Destination tree root is here:
+	local myJBase="/opt/jetty/jetty-base"
+   	
+	${Echo} "$FUNCNAME:  Creating JettyBase directory tree" >> ${statusFile} 2>&1
+    	mkdir -p ${myJBase}
+    	mkdir -p ${myJBase}/{logs,tmp,etc,lib/ext,lib/logging,resources,start.d,webapps}
 
-    	# regardless of jetty version, ensure there's a log and tmp directory like there was in Shib 3.1.2
-    	# if it is idp v3.1.2, these steps are redundant and the chown on the files will happen in the setup
+  	${Echo} "$FUNCNAME: creating start.ini" >> ${statusFile} 2>&1
+		cp "${prepJettybasePath}/start.ini.template" "${myJBase}/start.ini"
 
-        mkdir -p /opt/jetty/jetty-base/logs
-        mkdir -p /opt/jetty/jetty-base/tmp
-        
-        
+	${Echo} "$FUNCNAME: creating start.d/https.ini" >> ${statusFile} 2>&1
+		cp "${prepJettybasePath}/start.d/https.ini.template" "${myJBase}/start.d/https.ini"
+	
+	${Echo} "$FUNCNAME: creating start.d/http.ini" >> ${statusFile} 2>&1
+		cp "${prepJettybasePath}/start.d/http.ini.template" "${myJBase}/start.d/http.ini"
     
+	${Echo} "$FUNCNAME: creating start.d/ssl.ini and injecting necessary passwords" >> ${statusFile} 2>&1
+
+    	cat "${prepJettybasePath}/start.d/ssl.ini.template" | sed -re "s#ShIbBKeyPaSs#${pass}#;s#HtTpSkEyPaSs#${httpspass}#" > ${myJBase}/start.d/ssl.ini
+
+	${Echo} "$FUNCNAME: creating etc/jetty-ssl-context.xml" >> ${statusFile} 2>&1
+
+		cp "${prepJettybasePath}/etc/jetty-ssl-context.xml.template" "${myJBase}/etc/jetty-ssl-context.xml"
+    
+	${Echo} "$FUNCNAME: creating etc/jetty-ssl-context.xml" >> ${statusFile} 2>&1
+
+		cp "${prepJettybasePath}/etc/jetty-ssl-context.xml.template" "${myJBase}/etc/jetty-ssl-context.xml"
+
+	${Echo} "$FUNCNAME: Configure IdP Context Descriptor: creating webapps/idp.xml" >> ${statusFile} 2>&1
+
+		cp "${prepJettybasePath}/webapps/idp.xml.template" "${myJBase}/webapps/idp.xml"
+        
+
+	${Echo} "$FUNCNAME: Jetty Logging: /etc/jetty-requestlog.xml" >> ${statusFile} 2>&1
+
+		cp "${prepJettybasePath}/etc/jetty-requestlog.xml.template" "${myJBase}/etc/jetty-requestlog.xml"
+	
+	${Echo} "$FUNCNAME: Jetty Logging: /resources/logback.xml" >> ${statusFile} 2>&1
+
+		cp "${prepJettybasePath}/resources/logback.xml.template" "${myJBase}/resources/logback.xml"
+
+	${Echo} "$FUNCNAME: Jetty Logging: /resources/logback-access.xml" >> ${statusFile} 2>&1
+
+		cp "${prepJettybasePath}/resources/logback-access.xml.template" "${myJBase}/resources/logback-access.xml"
+                   
+	${Echo} "$FUNCNAME: Jetty Logging: placeing logback jars into place" >> ${statusFile} 2>&1
+
+		cp ${prepJettybasePath}/lib/logging/*.jar ${myJBase}/lib/logging/
+
+	${Echo} "$FUNCNAME: Jetty-9dta : placeing jars into place" >> ${statusFile} 2>&1
+
+		cp "${prepJettybasePath}/lib/ext/jetty9-dta-ssl-1.0.0.jar" "${myJBase}/lib/ext/jetty9-dta-ssl-1.0.0.jar"
+
+
 
 }
 
@@ -1828,8 +1878,8 @@ jettySetup() {
         ${sedInplaceCmd} 's/\# JETTY_BASE/JETTY_BASE=\/opt\/jetty\/jetty-base/g' /opt/jetty/bin/jetty.sh
         ${sedInplaceCmd} 's/TMPDIR:-\/tmp/TMPDIR:-\/opt\/jetty\/jetty-base\/tmp/g' /opt/jetty/bin/jetty.sh
 
- 		${Echo} "$FUNCNAME: manipulating jetty idp.ini for passphrases in jetty/jetty-base" >> ${statusFile} 2>&1 
-        cat ${filesPath}/idp.ini | sed -re "s#ShIbBKeyPaSs#${pass}#;s#HtTpSkEyPaSs#${httpspass}#" > /opt/jetty/jetty-base/start.d/idp.ini
+ #93		${Echo} "$FUNCNAME: manipulating jetty idp.ini for passphrases in jetty/jetty-base" >> ${statusFile} 2>&1 
+ #93      cat ${filesPath}/idp.ini | sed -re "s#ShIbBKeyPaSs#${pass}#;s#HtTpSkEyPaSs#${httpspass}#" > /opt/jetty/jetty-base/start.d/idp.ini
         
         jettySetupEnableStartOnBoot
 
@@ -1838,9 +1888,9 @@ jettySetup() {
         chown -R jetty:jetty /opt/jetty/ 
         chown -R jetty:jetty /opt/shibboleth-idp/
 
-        jettySetupSetDefaults
+#93        jettySetupSetDefaults
         
-        jettySetupManageCiphers
+#93        jettySetupManageCiphers
 
       ${Echo} "jettySetup: Ending Jetty servlet container setup"
 
