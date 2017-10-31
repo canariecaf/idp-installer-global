@@ -1,5 +1,14 @@
 Changelog
 
+3.1.1 Maintenance release
+		Updated to Shibboleth IdP 3.3.2
+		Updates to java settings
+
+3.1.0 Adoption of Apache 2.0 License
+
+3.0.0 Major release to support v3.x Shibboleth IdP
+
+
 2.5	Improved support for CentOS / Redhat
 	Removed jboss support
 	Changed mysql-connector-java version from 5.1.24 to 5.1.26

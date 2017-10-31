@@ -17,10 +17,10 @@ systemdHome="/usr/lib/systemd/system"
 #
 # Key Component Versions
 
-shibVer="3.2.1"
+shibVer="3.3.2"
 casVer="3.3.3"
 mysqlConVer="5.1.35"
-jettyVer="9.2.14.v20151106"
+jettyVer="9.3.21.v20170918"
 
 # database pooling connectivity dependancies
 commonsDbcp2Ver="2.1.1"
@@ -28,10 +28,10 @@ commonsPool2Ver="2.4.2"
 
 # uncomment if you want an older jetty version: jettyVer="9.2.13.v20150730"
 
-javaBuildName="8u65-b17"
-javaName="8u65"
+javaName="8u151"
+javaBuildName="8u151-b12/e758a0de34e24606bca991d704f6dcbf"
 javaMajorVersion="8"
-javaVer="1.8.0_65"
+javaVer="1.8.0_151"
 jcePolicySrc="jce_policy-8.zip"
 JCEUnlimitedResponse="2147483647"
 
@@ -76,6 +76,7 @@ fi
 #
 backupPath="${Spath}/backups/"
 filesPath="${Spath}/files"
+prepPath="${Spath}/prep"
 templatePath="${Spath}/assets"
 templatePathEduroamCentOS="${Spath}/assets/etc/raddb"
 templatePathEduroamCentOS7="${Spath}/assets/etc/raddb7"
@@ -140,7 +141,7 @@ BackTitle="IDP Deployer"
 # define commands
 ubuntuCmdU="apt-get update --fix-missing"
 ubuntuCmdUa="apt-get -y upgrade"
-ubuntuCmd1="apt-get -y install patch ntpdate unzip curl libxml2-utils xsltproc"
+ubuntuCmd1="apt-get -y install patch ntpdate unzip curl libxml2-utils xsltproc lsb-release"
 ubuntuCmd2="apt-get -y install git-core"
 ubuntuCmd3="apt-get -y install openjdk-6-jdk default-jre"
 ubuntuCmd4="apt-get -y install tomcat6"
@@ -154,7 +155,6 @@ ubuntuRadiusGroup="freerad"
 redhatCmdU="yum -y update"
 redhatCmd1="yum -y install patch ntpdate unzip curl libxslt libxml2"
 redhatCmd2="yum -y install git-core"
-#Deprecated:2016-12-22:TODO:remove next releaseredhatCmd3="yum -y install java-1.7.0-openjdk java-1.7.0-openjdk-devel"
 redhatCmd4="yum -y install tomcat6"
 redhatCmd5="yum -y install mysql-server"
 redhat_install_nc="yum -y install nc"

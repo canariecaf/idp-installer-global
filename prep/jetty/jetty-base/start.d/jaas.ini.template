@@ -1,0 +1,3 @@
+--module=jaas
+# Adjust the following path per your deployment
+jaas.login.conf=/opt/shibboleth-idp/conf/authn/jaas.config

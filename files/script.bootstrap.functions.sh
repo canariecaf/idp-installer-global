@@ -274,13 +274,15 @@ guessLinuxDist() {
 	elif [ -s "/etc/redhat-release" ]; then
 		dist="redhat"
 	else
-		local really=$(askYesNo "Distribution" "Can not guess linux distribution, procede assuming debian(ish)?")
+		# local really=$(askYesNo "Distribution" "Can not guess linux distribution, procede assuming debian(ish)?")
 
-		if [ "${really}" != "n" ]; then
+		${Echo} "Can not guess linux distribution, assuming debian(ish)"
+
+		#if [ "${really}" != "n" ]; then
 			dist="ubuntu"
-		else
-			cleanBadInstall
-		fi
+		#else
+		#	cleanBadInstall
+		#fi
 	fi
 }
 
