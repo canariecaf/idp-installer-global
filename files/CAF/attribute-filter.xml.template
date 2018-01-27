@@ -236,7 +236,41 @@
 
 IdPInstaller-releaseToRandS--> 
 
+<!-- ##########################################
+#
+#   Site: shib.lynda.com
+#   Purpose: Lynda.com is a service provider with the following requirements
+#   Considerations: Site expects active users and not alum or other records not active within the organization
+#
+-->  
+<!--IdPInstaller-releaseToLyndaDotCom
 
+<AttributeFilterPolicy id="CAF-IdPInstaller-EnableAccess-lynda-com">
+  <PolicyRequirementRule xsi:type="Requester" value="https://shib.lynda.com/shibboleth-sp" />
+   <AttributeRule attributeID="eduPersonPrincipalName">
+    <PermitValueRule xsi:type="ANY" />
+  </AttributeRule>
+  <AttributeRule attributeID="eduPersonTargetedID">
+    <PermitValueRule xsi:type="ANY" />
+  </AttributeRule>
+  <AttributeRule attributeID="email">
+    <PermitValueRule xsi:type="ANY" />
+  </AttributeRule>
+  <AttributeRule attributeID="displayName">
+    <PermitValueRule xsi:type="ANY" />
+  </AttributeRule>
+  <AttributeRule attributeID="givenName">
+    <PermitValueRule xsi:type="ANY" />
+  </AttributeRule>
+  <AttributeRule attributeID="surname">
+    <PermitValueRule xsi:type="ANY" />
+  </AttributeRule>
+  <AttributeRule attributeID="eduPersonScopedAffiliation">
+    <PermitValueRule xsi:type="ANY" />
+  </AttributeRule>
+</AttributeFilterPolicy>
+
+IdPInstaller-releaseToLyndaDotCom-->
 
 
 <!-- ##########################################
