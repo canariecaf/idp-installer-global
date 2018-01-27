@@ -1,7 +1,8 @@
 #!/bin/sh
 # UTF-8
 
-
+# uncomment for debugging
+# set -x
 
 setBackTitle ()
 {
@@ -92,6 +93,9 @@ setVarIdPScope ()
 }
 
 updateJavaAlternatives() {
+
+	${Echo} "Removing Java Alternatives in case they cause us grief" >> ${statusFile} 2>&1
+	
 	for i in `ls $JAVA_HOME/bin/`; do
 		rm -f /var/lib/alternatives/$i
 		update-alternatives --install /usr/bin/$i $i $JAVA_HOME/bin/$i 100
@@ -99,88 +103,74 @@ updateJavaAlternatives() {
 	done
 }
 
-installOracleJava () {
-	javaType=$1
+installjdk () {
 
-	if [ "${javaType}" != "jdk" ]; then
-		javaType="jre"
-	fi
+# we fetch and unroll the java9 jdk and set java home and don't touch the system stuff
+# we place the jdk in /opt/java and we run exclusively with that jdk and nothing else.
 
-	javaSrc="${javaType}-${javaName}-linux-x64.tar.gz"
-	javaDownloadLink="http://download.oracle.com/otn-pub/java/jdk/${javaBuildName}/${javaSrc}"
-	jceDownloadLink="http://download.oracle.com/otn-pub/java/jce/${javaMajorVersion}/${jcePolicySrc}"
 
-	# force the latest java onto the system to ensure latest is available for all operations.
-	# including the calculation of JAVA_HOME to be what this script sees on the system, not what a stale environment may have
+	# javaType comes from script.messages.sh and is the type of java install 	
+	# javaSrc comes from script.messages.sh and is the name of the file itself 
+	# javaDownloadLink comes from script.messages.sh and is the full download link
 
-	if [ -L "/usr/java/default" -a -d "/usr/java/${javaType}${javaVer}" ]; then
-		export JAVA_HOME=/usr/java/default
-		${Echo} "Detected Java allready installed in ${JAVA_HOME}."
+	
+	# if JAVA_HOME is set we attempt to verify it exists
 
-		if [ -z "`readlink -e /usr/bin/java | grep \"${javaType}${javaVer}\"`" ]; then
-			${Echo} "${JAVA_HOME} not used as default java. Updating system links."
+	if [[ -v "${JAVA_HOME}" ]]; then
 
-			if [ -d "/usr/java/latest" ]; then
-				mv /usr/java/latest /usr/java/latest.old
-			fi
-			if [ -s "/usr/java/latest" ]; then
-				rm -f /usr/java/latest
-			fi
-			ln -s /usr/java/${javaType}${javaVer}/ /usr/java/latest
-
-			if [ -d "/usr/java/default" ]; then
-				mv /usr/java/default /usr/java/default.old
-			fi
-			if [ -s "/usr/java/default" ]; then
-				rm -f /usr/java/default
-			fi
-			ln -s /usr/java/latest /usr/java/default
-
-			updateJavaAlternatives
-		fi
+		${Echo} "JAVA_HOME exists!: ${JAVA_HOME}" >> ${statusFile} 2>&1
+		${Echo} "we will attempt to use this one. Sleeping 5 sec. hit ctrl-c to exit to avoid using this JAVA_HOME" >> ${statusFile} 2>&1
+		sleep 5
+		${Echo} "continuing with JAVA_HOME as: ${JAVA_HOME}" >> ${statusFile} 2>&1
+		
 	else
-		${Echo} "Oracle java not detected."
-
-		unset JAVA_HOME
-
+		${Echo} "${Echo} JAVA_HOME does not exist, working with our own jdk9 " >> ${statusFile} 2>&1
+		
+		
 		# Download if needed and install from src
-		${Echo} "Downloading java."
+		${Echo} "Working on installing java 9"
 		if [ ! -s "${downloadPath}/${javaSrc}" ]; then
-			${fetchCmd} ${downloadPath}/${javaSrc} -j -L -H "Cookie: oraclelicense=accept-securebackup-cookie" ${javaDownloadLink} 2>&1
+
+			${Echo} "${Echo} No cached version of of ${javaSrc} in downloads folder, fetching it now" >> ${statusFile} 2>&1
+			${fetchCmd} "${downloadPath}/${javaSrc}" "${javaDownloadLink}" 2>&1
 		fi
 
 		${Echo} "Unpacking java and setting up symlinks."
-		if [ ! -d "/usr/java" ]; then
-			mkdir /usr/java
+		if [ ! -d "${javaOnDiskRoot}" ]; then
+			${Echo} "${Echo} Creating ${javaOnDiskRoot}" >> ${statusFile} 2>&1			
+			mkdir "${javaOnDiskRoot}"
 		fi
-		tar xzf ${downloadPath}/${javaSrc} -C /usr/java/
-		unpackRet=$?
+
+			${Echo} "${Echo} unpacking ${javaSrc}" >> ${statusFile} 2>&1			
+			tar xzf ${downloadPath}/${javaSrc} -C ${javaOnDiskRoot}
+			unpackRet=$?
 
 		if [ "${unpackRet}" -ne 0 ]; then
 			${Echo} "Unpacking java failed, aborting script."
-			rm -r /usr/java/${javaType}${javaVer}/
+			${Echo} "${Echo} unpacking ${javaSrc} failed. please remove remnants from ${javaOnDiskRoot} before restarting this script again." >> ${statusFile} 2>&1			
 			return 1
 		fi
 
-		if [ -d "/usr/java/latest" ]; then
-			mv /usr/java/latest /usr/java/latest.old
-		fi
-		if [ -s "/usr/java/latest" ]; then
-			rm -f /usr/java/latest
-		fi
-		ln -s /usr/java/${javaType}${javaVer}/ /usr/java/latest
+		# if [ -d "/usr/java/latest" ]; then
+		# 	mv /usr/java/latest /usr/java/latest.old
+		# fi
+		# if [ -s "/usr/java/latest" ]; then
+		# 	rm -f /usr/java/latest
+		# fi
+		# ln -s /usr/java/${javaType}${javaVer}/ /usr/java/latest
 
-		if [ -d "/usr/java/default" ]; then
-			mv /usr/java/default /usr/java/default.old
-		fi
-		if [ -s "/usr/java/default" ]; then
-			rm -f /usr/java/default
-		fi
-		ln -s /usr/java/latest /usr/java/default
+		# if [ -d "/usr/java/default" ]; then
+		# 	mv /usr/java/default /usr/java/default.old
+		# fi
+		# if [ -s "/usr/java/default" ]; then
+		# 	rm -f /usr/java/default
+		# fi
+		# ln -s /usr/java/latest /usr/java/default
 
-		export JAVA_HOME="/usr/java/default"
-		export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+		export JAVA_HOME="${javaExpectedJavaHome}"
+		export PATH="${javaExpectedJavaBinHome}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 		# Set the alternatives
+
 		updateJavaAlternatives
 
 		echo "***javahome is: ${JAVA_HOME}"
@@ -225,6 +215,14 @@ installOracleJava () {
 
 	fi
 
+	return 0
+}
+testJavaCryptoStrength ()
+{
+	#
+	# Next we detect jvm crypto strength in case there is a problem we need to pay attention to
+	#
+	# We conciously choose to NOT fail the installation but may in the future
 
 	JCETestCmd="java -classpath ${downloadPath} checkJCEStrength"
 
@@ -232,64 +230,18 @@ installOracleJava () {
 	JCETestResults=$(eval ${JCETestCmd})
 
 	if [ "${JCETestResults}" == "${JCEUnlimitedResponse}" ]; then
-		${Echo} "Java Cryptography Extensions alredy installed."
+		${Echo} "Java Cryptography Strength for this jdk is sufficient continuing installation"
 	else
-		${Echo} "Setting Java Cryptography Extensions to unlimited strength"
 
-		# Backup originals
-		JCEBkp1="local_policy.jar"
-		JCEBkp2="US_export_policy.jar"
-		JCEBkp1Path="${JAVA_HOME}/lib/security/${JCEBkp1}"
-		JCEBkp2Path="${JAVA_HOME}/lib/security/${JCEBkp2}"
-		JCEBkpPostfix=`date +%F-%s`
-		${Echo} "Backing up ${JCEBkp1} and ${JCEBkp1} from ${JAVA_HOME} to ${Spath}"
-		if [ "${javaType}" == "jdk" ]; then
-			JCEBkp1Path="${JAVA_HOME}/jre/lib/security/${JCEBkp1}"
-			JCEBkp2Path="${JAVA_HOME}/jre/lib/security/${JCEBkp2}"
-		fi
-		cp ${JCEBkp1Path} ${Spath}/${JCEBkp1}-${JCEBkpPostfix}
-		cp ${JCEBkp2Path} ${Spath}/${JCEBkp2}-${JCEBkpPostfix}
+		${Echo} "WARNING: Java Cryptography Strength for this jdk is crippled. Installation can continue, but your JVM may need to be adjusted!"
 
-		# Fetch new policy file
-		if [ ! -s "${downloadPath}/${jcePolicySrc}" ]; then
-			${Echo} "Fetching Java Cryptography Extensions from Oracle"
-			${fetchCmd} ${downloadPath}/${jcePolicySrc} -j -L -H "Cookie: oraclelicense=accept-securebackup-cookie" ${jceDownloadLink} 2>&1
-		fi
-
-		# Extract locally into downloads directory
-		unzip -o ${downloadPath}/${jcePolicySrc} -d ${downloadPath}
-		jceUnpacRet=$?
-		if [ "${jceUnpacRet}" -ne "0" ]; then
-			${Echo} "**Unpacking Java Cryptography Extensions update failed!**"
-			${Echo} "**Install will succeed but you will not operate at full crypto strength **"
-			${Echo} "**Some Service Providers will fail to negotiate.**"
-			return 0
-		fi
-
-		# copy into place
-		${Echo} "Putting Java Cryptography Extensions from Oracle into ${JAVA_HOME}/lib/security/"
-
-		JCEWorkingDir="${downloadPath}/UnlimitedJCEPolicyJDK8"
-		cp ${JCEWorkingDir}/${JCEBkp1} ${JCEBkp1Path}
-		cp ${JCEWorkingDir}/${JCEBkp2} ${JCEBkp2Path}
-
-		${Echo} "Testing Java Cryptography Extensions"
-		JCETestResults=$(eval ${JCETestCmd})
-
-		if [ "${JCETestResults}" == "${JCEUnlimitedResponse}" ]; then
-			${Echo} "Java Cryptography Extensions update succeeded"
-		else
-			${Echo} "**Java Cryptography Extensions update failed! rolling back using backups**"
-			${Echo} "**Install will succeed but you will not operate at full crypto strength **"
-			${Echo} "**Some Service Providers will fail to negotiate.**"
-
-			cp ${downloadPath}/${JCEBkp1}-${JCEBkpPostfix} ${JCEBkp1Path}
-			cp ${downloadPath}/${JCEBkp2}-${JCEBkpPostfix} ${JCEBkp2Path}
-		fi
 	fi
 
+
 	return 0
+
 }
+
 
 setJavaHome () {
 	# force the latest java onto the system to ensure latest is available for all operations.
@@ -297,7 +249,10 @@ setJavaHome () {
 
 	# June 23, 2015, altering java detection behaviour to be more platform agnostic
 
-	installOracleJava
+${Echo} "Working on java installjdk and testing your crypto strength of it"
+		
+	installjdk && testJavaCryptoStrength
+
 	retval=$?
 
 	if [ "${retval}" -ne 0 ]; then
@@ -318,65 +273,7 @@ setJavaCACerts ()
 }
 
 
-setJavaCryptographyExtensions ()
-{
-# requires that Oracle's java is already installed in the system and will auto-accept the license.
-# download instructions are found here: http://www.oracle.com/technetwork/java/javase/downloads/jce8-download-2133166.html
-#
-# because they are crypto settings, this function is abstracted out
 
-	${Echo} "Setting Java Cryptography Extensions to unlimited strength" | tee -a ${statusFile}
-
-# Backup originals
-	JCEBkp1="local_policy.jar"
-	JCEBkp2="US_export_policy.jar"
-	JCEBkpPostfix=`date +%F-%s`
-	${Echo} "Backing up ${JCEBkp1} and ${JCEBkp1} from ${JAVA_HOME} to ${Spath}/backups" | tee -a ${statusFile}
-	eval "cp ${JAVA_HOME}/lib/security/${JCEBkp1} ${Spath}/backups/${JCEBkp1}-${JCEBkpPostfix}" &> >(tee -a ${statusFile})
-	eval "cp ${JAVA_HOME}/lib/security/${JCEBkp2} ${Spath}/backups/${JCEBkp2}-${JCEBkpPostfix}" &> >(tee -a ${statusFile})
-
-# Fetch new policy file
-	${Echo} "Fetching Java Cryptography Extensions from Oracle" | tee -a ${statusFile}
-
-        jcePolicySrc="jce_policy-8.zip"
-
-        if [ ! -s "${downloadPath}/${jcePolicySrc}" ]; then
-                ${fetchCmd} ${downloadPath}/${jcePolicySrc} -j -L -H "Cookie: oraclelicense=accept-securebackup-cookie"  http://download.oracle.com/otn-pub/java/jce/8/${jcePolicySrc} >> ${statusFile} 2>&1
-        fi
-       
-# Extract locally into downloads directory
-
-       eval "(pushd ${downloadPath}; unzip -o ${downloadPath}/${jcePolicySrc}; popd)" &> >(tee -a ${statusFile})
-
-# copy into place
-	${Echo} "Putting Java Cryptography Extensions from Oracle into ${JAVA_HOME}/lib/security/" | tee -a ${statusFile}
-
-	JCEWorkingDir="${downloadPath}/UnlimitedJCEPolicyJDK8"
-	eval "cp ${JCEWorkingDir}/${JCEBkp1} ${JAVA_HOME}/lib/security/${JCEBkp1}" &> >(tee -a ${statusFile})
-	eval "cp ${JCEWorkingDir}/${JCEBkp2} ${JAVA_HOME}/lib/security/${JCEBkp2}" &> >(tee -a ${statusFile})
-
-	${Echo} "Testing Java Cryptography Extensions" | tee -a ${statusFile}
-	JCEUnlimitedResponse="2147483647"
-	JCETestCmd="java -classpath ${downloadPath} checkJCEStrength"
-	JCETestResults=$(eval ${JCETestCmd}) 
-
-	if [ "${JCETestResults}" ==  "${JCEUnlimitedResponse}" ]
-	     then
-            ${Echo} "Java Cryptography Extensions update succeeded" | tee -a ${statusFile}
-	else
-			${Echo} "**Java Cryptography Extensions update failed! rolling back using backups**" | tee -a ${statusFile}
-			${Echo} "**Install will succeed but you will not operate at full crypto strength **" | tee -a ${statusFile}
-			${Echo} "**Some Service Providers will fail to negotiate. See https://github.com/canariecaf/idp-installer-CAF/issues/71 **" | tee -a ${statusFile}
-
-	eval "cp  ${Spath}/backups/${JCEBkp1}-${JCEBkpPostfix} ${JAVA_HOME}/lib/security/${JCEBkp1}" &> >(tee -a ${statusFile})
-	eval "cp ${Spath}/backups/${JCEBkp2}-${JCEBkpPostfix} ${JAVA_HOME}/lib/security/${JCEBkp2}" &> >(tee -a ${statusFile})
-
-
-	fi
-
-
-
-}
 
 
 
@@ -648,6 +545,9 @@ fi
 fetchAndUnzipShibbolethIdP ()
 
 {
+
+		${Echo} "$FUNCNAME: Fetching ${shibVer}"  >> ${statusFile} 2>&1
+
 	cd /opt
 
 	if [ ! -f "${downloadPath}/${shibDir}-${shibVer}.tar.gz" ]; then
@@ -1107,8 +1007,9 @@ idp.authn.LDAP.dnFormat                         = ${ldapDnFormat}
 EOM
 
 	# Run the installer
+${Echo} "Executing Shibboleth Installer with JAVA_HOME: ${JAVA_HOME}"
 
-	JAVA_HOME=/usr/java/default /opt/${shibDir}/bin/install.sh \
+	( export JAVA_HOME=${JAVA_HOME}; /opt/${shibDir}/bin/install.sh \
 	-Didp.src.dir=./ \
 	-Didp.target.dir=/opt/shibboleth-idp \
 	-Didp.host.name="${certCN}" \
@@ -1116,7 +1017,7 @@ EOM
 	-Didp.keystore.password="${pass}" \
 	-Didp.sealer.password="${pass}" \
 	-Dldap.merge.properties=./ldap.properties.tmp \
-	-Didp.merge.properties=./idp.properties.tmp
+	-Didp.merge.properties=./idp.properties.tmp )
 
 }
 
@@ -1236,7 +1137,7 @@ if [ "${rAndSEnabled}" = "y" ]; then
 else
 	${Echo} "$FUNCNAME: R and S entity category support was not selected, skipping enabling this policy in the IdP" >> ${statusFile} 2>&1
 fi	
-${Echo} "$FUNCNAME: R and S entity category support processing done." >> $
+${Echo} "$FUNCNAME: R and S entity category support processing done." >> ${statusFile} 2>&1
 
 }
 
@@ -1632,6 +1533,8 @@ cAns=$(askYesNo "Save config" "Do you want to save theese config values?\n\nIf y
 performStepsForShibbolethUpgradeIfRequired ()
 
 {
+
+${Echo} "Working on Shibboleth software"
 
 if [ "${upgrade}" -eq 1 ]; then
 

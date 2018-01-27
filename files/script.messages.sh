@@ -26,17 +26,29 @@ jettyVer="9.3.21.v20170918"
 commonsDbcp2Ver="2.1.1"
 commonsPool2Ver="2.4.2"
 
-# uncomment if you want an older jetty version: jettyVer="9.2.13.v20150730"
-
-javaName="8u151"
+# Jan 2018 - moving to openjdk9 
+# current: https://download.java.net/java/GA/jdk9/9.0.4/binaries/openjdk-9.0.4_linux-x64_bin.tar.gz
+# old: http://download.oracle.com/otn-pub/java/jdk/${javaBuildName}/${javaSrc}"
+javaType="openjdk"
+javaName="9.0.4"
 javaBuildName="8u151-b12/e758a0de34e24606bca991d704f6dcbf"
-javaMajorVersion="8"
-javaVer="1.8.0_151"
+javaMajorVersion="9"
+javaVer="9.0.4"
 jcePolicySrc="jce_policy-8.zip"
 JCEUnlimitedResponse="2147483647"
 
+javaSrc="${javaType}-${javaName}_linux-x64_bin.tar.gz"
+javaDownloadBaseURLPath="https://download.java.net/java/GA/jdk${javaMajorVersion}"
+javaDownloadLink="${javaDownloadBaseURLPath}/${javaName}/binaries/${javaSrc}"
+javaOnDiskRoot="/opt/java"
+javaExpectedJavaHome="${javaOnDiskRoot}/jdk-${javaName}"
+javaExpectedJavaBinHome="${javaExpectedJavaHome}/bin"
+
+
 # this is the java starting heap size. We put the 'M' after it upon installation
-javaMaxHeapSize="2048"
+# updated to 3gb to handle larger aggregates -- give your VM adequate memory!
+
+javaMaxHeapSize="3000"
 
 
 #
