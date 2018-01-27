@@ -7,6 +7,34 @@ This tool benefits from, and relies on you being online and connected to your en
 from your repository for your OS as well as the necessary certificates.
 
 Branch	Details
+3.1.0-RC2
+		Commit notes:
+			- OpenJDK9 is now supported as the JVM of choice.
+
+		Version compatibility:
+			This tool is an installer tool and usually only used once to perform an installation.
+			To this end, we recommend for all scenarios to:
+			- make a clone of your environment you are trying to work with and use that as your testing ground
+			- use the latest version of this tool when doing installations.
+
+		
+			If you installed with the 2.x.x-CAF, 3.x.x-CAF-RCx, or standalone Shibboleth 2.x release:
+				- This installer will not upgrade an inplace installation of that install and is something we are working on. 
+				- We recommend a new installation and import your configuration file into the configuration builder 
+				so that you may benefit from the additional features.
+
+			If you have a pre-existing Shibboleth 3.x.x installation:
+				- We recommend working with the latest Shibboleth software itself rather than the installer.
+				- It will detect the existing configuration and provide an attempt at an upgrade.
+
+		Known Issues
+			OpenJDK9 issues WARNING: Illegal reflective access by org.springframework.beans.BeanUtils upon use of software that was built using JdK8 or lower. At this time these appear benign but future updates to OpenJdK > 9.0.4 in the future may prevent this from running.
+
+
+		Please report IdP-Installer related issues to:
+			tickets@canarie.ca 
+
+
 3.1.0
 		Commit notes:
 			- The license for the version going forward is the Apache 2.0 License
