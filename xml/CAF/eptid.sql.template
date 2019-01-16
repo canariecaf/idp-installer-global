@@ -1,3 +1,5 @@
+create user 'shibboleth'@'localhost' IDENTIFIED BY 'SqLpAsSwOrD';
+
 SET NAMES 'utf8';
 SET CHARACTER SET utf8;
 CHARSET utf8;
@@ -15,4 +17,4 @@ CREATE TABLE shibpid (
     PRIMARY KEY (localEntity, peerEntity, persistentId)
 );
 
-grant ALL ON shibboleth.shibpid to 'shibboleth'@'localhost' IDENTIFIED BY 'SqLpAsSwOrD';
+grant ALL ON shibboleth.* to 'shibboleth'@'localhost';

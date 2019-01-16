@@ -25,10 +25,10 @@
 # Alternate garbage collector that reduces memory needed for larger metadata files
 -XX:+UseG1GC
   
-# Maximum amount of memory that Jetty may use, at least 1.5G is recommended
+# Maximum amount of memory that Jetty may use, at least 3.5G is recommended
 # for handling larger (> 25M) metadata files but you will need to test on
 # your particular metadata configuration
--Xmx2000m
+-Xmx3500m
  
 # Maximum amount of memory allowed for the JVM permanent generation (Java 7 only)
 -XX:MaxPermSize=128m

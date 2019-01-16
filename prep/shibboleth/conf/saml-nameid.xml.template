@@ -62,7 +62,7 @@
     
 <!-- A DataSource bean suitable for use in the idp.persistentId.dataSource property. -->
 <bean id="MyDataSource" class="org.apache.commons.dbcp2.BasicDataSource"
-    p:driverClassName="com.mysql.jdbc.Driver"
+    p:driverClassName="com.mysql.cj.jdbc.Driver"
    	p:url="jdbc:mysql://127.0.0.1:3306/shibboleth?autoReconnect=true&amp;localSocketAddress=127.0.0.1&amp;connectTimeout=1800&amp;initialTimeout=2&amp;logSlowQueries=true&amp;autoReconnectForPools=true"
 	  p:username="shibboleth"
  	  p:password="SqLpAsSwOrD"

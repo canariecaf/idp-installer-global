@@ -19,7 +19,7 @@ systemdHome="/usr/lib/systemd/system"
 
 shibVer="3.3.2"
 casVer="3.3.3"
-mysqlConVer="5.1.35"
+mysqlConVer="8.0.13"
 jettyVer="9.3.21.v20170918"
 
 # database pooling connectivity dependancies
@@ -101,7 +101,7 @@ RedhatEduroamModules="/modules"
 downloadPath="${Spath}/downloads"
 backupList="${backupPath}/recoverypoints.txt"
 freeradiusfile="${Spath}/files/freeradius.tx"
-
+mysqlDefaultsFile="${Spath}/files/mysql-client.conf"
 
 mainMenuExitFlag=0
 whipSize="13 75"

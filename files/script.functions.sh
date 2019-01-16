@@ -297,12 +297,10 @@ generatePasswordsForSubsystems ()
 		fi
 	fi
 	if [ -z "${mysqlPass}" -a "${eptid}" != "n" ]; then
-		mysqlPass=`${passGenCmd}`
-		${Echo} "Mysql root password generated\nPassword is '${mysqlPass}'" >> ${messages}
 
-		if [ "${installer_interactive}" = "n" ]; then
-			${Echo} "MySQL password is '${mysqlPass}'" >> ${statusFile}
-		fi
+		mysqlPass=`${passGenCmd}`
+
+		
 	fi
 
 }
@@ -399,18 +397,32 @@ installEPTIDSupport ()
                                         service mysqld restart >> ${statusFile} 2>&1
                                 fi
                         fi
-                        # set mysql root password
-                        tfile=`mktemp`
+				    # set mysql root password
+					# CentOS7 specific
+				mysqlPass=`cat /var/log/mysqld.log |grep "temporary password" |tail -1 |awk '{print $NF}'`
+
+				${Echo} "Mysql root password generated\nPassword is '${mysqlPass}'" >> ${messages}
+
+				# perform overlay of our template with necessary substitutions
+				${Echo} "Preparing mysql installation credentials to boostrap db using --defaults-file=${mysqlDefaultsFile}" >> ${statusFile} 2>&1
+				cat ${filesPath}/TEMPLATE/mysql-client.conf.template | sed -re "s#MySqLpAsS#${mysqlPass}#" > "${mysqlDefaultsFile}"
+				${Echo} "Wrote defaults-file=${mysqlDefaultsFile}" >> ${statusFile} 2>&1
+
+		                        tfile=`mktemp`
                         if [ ! -f "$tfile" ]; then
                                 return 1
                         fi
-                        cat << EOM > $tfile
-USE mysql;
-UPDATE user SET password=PASSWORD("${mysqlPass}") WHERE user='root';
-FLUSH PRIVILEGES;
+                cat << EOM > $tfile
+alter user 'root'@'localhost' identified by '${mysqlPass}';
+flush privileges;
+quit
 EOM
+						if [ -z "$mysqlPass" ]; then
+							echo "Mysqlpassword for install not found .. remove mysql completely before retrying installer again"
+							exit
+						fi
 
-                        mysql --no-defaults -u root -h localhost <$tfile
+                        mysql --defaults-file=${mysqlDefaultsFile} --connect-expired-password -u root -h localhost <$tfile
                         retval=$?
                         # moved removal of MySQL command file to be in the if-then-else statement set below
 
@@ -425,7 +437,7 @@ EOM
                         fi
 
 
-			if [ "${dist}" == "centos" -o "${dist}" == "redhat" ]; then
+					if [ "${dist}" == "centos" -o "${dist}" == "redhat" ]; then
                                 /sbin/chkconfig mysqld on
                         fi
                 fi
@@ -2015,7 +2027,7 @@ prepareDatabase ()
 		files="`${Echo} ${files}` ${Spath}/xml/${my_ctl_federation}/eptid.sql"
 
 		${Echo} "Create MySQL database and shibboleth user."
-		mysql -uroot -p"${mysqlPass}" < ${Spath}/xml/${my_ctl_federation}/eptid.sql
+		mysql --defaults-file=${mysqlDefaultsFile} -uroot  < ${Spath}/xml/${my_ctl_federation}/eptid.sql
 		retval=$?
 		if [ "${retval}" -ne 0 ]; then
 			${Echo} "Failed to create EPTID database, take a look in the file '${Spath}/xml/${my_ctl_federation}/eptid.sql.template' and corect the issue." >> ${messages}
@@ -2235,7 +2247,7 @@ loadDatabaseDump ()
 	if [ -s "${Spath}/extract/sql.dump" ]; then
 		if [ "${ehost}" = "localhost" -o "${ehost}" = "127.0.0.1" ]; then
 			if [ "${etype}" = "mysql" ]; then
-				mysql -uroot -p"${mysqlPass}" -D ${eDB} < ${Spath}/extract/sql.dump
+				mysql --defaults-file=${mysqlDefaultsFile} -uroot  -D ${eDB} < ${Spath}/extract/sql.dump
 			fi
 		else
 			${Echo} "Database not on localhost, skipping database import." >> ${messages}
