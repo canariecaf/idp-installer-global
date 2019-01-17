@@ -276,7 +276,13 @@ setJavaCACerts ()
 
 
 
+genpasswd ()
+{
 
+	# a crude low entropic password generator 
+
+	</dev/urandom tr -dc '12345!@$%+qwertQWERTasdfgASDFGzxcvbZXCVB' | head -c20; echo ""
+}
 
 generatePasswordsForSubsystems ()
 
@@ -298,7 +304,7 @@ generatePasswordsForSubsystems ()
 	fi
 	if [ -z "${mysqlPass}" -a "${eptid}" != "n" ]; then
 
-		mysqlPass=`${passGenCmd}`
+		mysqlPass=$(genpasswd)
 
 		
 	fi
@@ -405,7 +411,12 @@ installEPTIDSupport ()
 
 				# perform overlay of our template with necessary substitutions
 				${Echo} "Preparing mysql installation credentials to boostrap db using --defaults-file=${mysqlDefaultsFile}" >> ${statusFile} 2>&1
-				cat ${filesPath}/TEMPLATE/mysql-client.conf.template | sed -re "s#MySqLpAsS#${mysqlPass}#" > "${mysqlDefaultsFile}"
+				
+				cat << EOM > ${mysqlDefaultsFile}
+[client]
+password=${mysqlPass}
+EOM
+
 				${Echo} "Wrote defaults-file=${mysqlDefaultsFile}" >> ${statusFile} 2>&1
 
 		                        tfile=`mktemp`
@@ -443,9 +454,12 @@ EOM
                 fi
 
                 fetchMysqlCon
+  
+			${Echo} "Placing JDBC driver into Shibboleth edit-webapp/WEB-INF/lib folder" >> ${statusFile} 2>&1
+
                 cd /opt
                 tar zxf ${downloadPath}/mysql-connector-java-${mysqlConVer}.tar.gz -C /opt >> ${statusFile} 2>&1
-                cp /opt/mysql-connector-java-${mysqlConVer}/mysql-connector-java-${mysqlConVer}-bin.jar /opt/shibboleth-idp/edit-webapp/WEB-INF/lib/
+                cp /opt/mysql-connector-java-${mysqlConVer}/mysql-connector-java-${mysqlConVer}.jar /opt/shibboleth-idp/edit-webapp/WEB-INF/lib/
 		/opt/shibboleth-idp/bin/build.sh -Didp.target.dir=/opt/shibboleth-idp
 
         fi

@@ -31,4 +31,4 @@
 -Xmx3500m
  
 # Maximum amount of memory allowed for the JVM permanent generation (Java 7 only)
--XX:MaxPermSize=128m
+#-XX:MaxPermSize=128m
